@@ -17,7 +17,7 @@ export const StatCard: React.FC<StatCardProps> = ({
   value,
   subtitle,
   icon,
-  color = '#4f46e5',
+  color = '#E31E24',
   badge,
   onPress,
 }) => {

@@ -14,9 +14,9 @@ export const LocationHeader: React.FC = () => {
         onPress={() => setModalVisible(true)}
         activeOpacity={0.7}
       >
-        <Ionicons name="business-outline" size={16} color="#4f46e5" style={styles.icon} />
+        <Ionicons name="business" size={16} color="#E31E24" style={styles.icon} />
         <Text style={styles.locationText} numberOfLines={1}>
-          {currentLocationName}
+          Hub: {currentLocationName}
         </Text>
         <Ionicons name="chevron-down" size={14} color="#64748b" />
       </TouchableOpacity>
@@ -60,7 +60,7 @@ export const LocationHeader: React.FC = () => {
                 All Locations (Consolidated)
               </Text>
               {selectedLocationId === 'all' && (
-                <Ionicons name="checkmark" size={18} color="#4f46e5" />
+                <Ionicons name="checkmark" size={18} color="#E31E24" />
               )}
             </TouchableOpacity>
 
@@ -83,7 +83,7 @@ export const LocationHeader: React.FC = () => {
                       </Text>
                       <Text style={styles.optionSub}>{item.code} • {item.type}</Text>
                     </View>
-                    {isSelected && <Ionicons name="checkmark" size={18} color="#4f46e5" />}
+                    {isSelected && <Ionicons name="checkmark" size={18} color="#E31E24" />}
                   </TouchableOpacity>
                 );
               }}
@@ -165,7 +165,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   selectedOptionItem: {
-    backgroundColor: '#eef2ff',
+    backgroundColor: '#fef2f2',
   },
   optionText: {
     fontSize: 14,
@@ -173,7 +173,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   selectedOptionText: {
-    color: '#4f46e5',
+    color: '#E31E24',
     fontWeight: '700',
   },
   optionSub: {

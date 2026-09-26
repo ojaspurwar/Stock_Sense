@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>StockSense · UI kit</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Instrument+Serif:ital@0;1&family=Inter+Tight:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<style>
+html,body{height:auto}
+body{padding:14px;background-attachment:scroll;min-height:100%}
+.grid{display:grid;gap:var(--gap)}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:var(--gap)}
+.p{background:#fff;border-radius:var(--r-panel);padding:28px 32px}
+h2{font-size:24px;font-weight:400;letter-spacing:-.01em;margin-bottom:18px}
+h2 small{font-size:13px;color:var(--muted);margin-left:8px;font-weight:400}
+.swatches{display:grid;grid-template-columns:repeat(12,1fr);gap:8px}
+.sw .chip{height:70px;border-radius:4px;border:1px solid var(--grey-100)}
+.sw b{display:block;font-size:12px;font-weight:600;margin-top:8px}
+.sw span{display:block;font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-top:2px}
+.sw em{display:block;font-style:normal;font-size:11px;color:var(--ink-2);margin-top:4px;line-height:1.3}
+.type{display:grid;grid-template-columns:1.2fr 1fr 1fr 1fr;gap:28px;align-items:end}
+.type > div{border-top:1px solid var(--grey-100);padding-top:12px}
+.spec{font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-top:10px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.lbl{font-size:12px;color:var(--muted);margin:18px 0 8px}
+.effect{display:flex;align-items:center;gap:12px;background:var(--grey-50);border-radius:4px;padding:14px;font-size:13px;color:var(--ink-2);line-height:1.4}
+.effect b{font-family:var(--font-mono);font-weight:400;font-size:20px;white-space:nowrap}
+.doc-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px}
+.doc-head h3{font-family:var(--font-mono);font-weight:400;font-size:18px}
+.doc-head p{font-size:13px;color:var(--muted);margin-top:4px}
+.lines{border:1px solid var(--grey-100);border-radius:4px;margin:16px 0}
+.line{display:flex;justify-content:space-between;align-items:center;padding:11px 14px;font-size:14px;gap:12px}
+.line + .line{border-top:1px solid var(--grey-100)}
+.line .l{display:flex;align-items:center;gap:10px}
+.cb{width:16px;height:16px;border-radius:3px;border:1px solid var(--grey-200);display:grid;place-items:center;font-size:11px}
+.cb.on{background:var(--ink);border-color:var(--ink);color:#fff}
+.stepper{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.st{border-top:3px solid var(--grey-100);padding-top:10px;font-size:13px;color:var(--muted)}
+.st b{display:block;font-family:var(--font-mono);font-weight:400;font-size:11px;margin-bottom:2px}
+.st.done{border-color:var(--sky-700);color:var(--ink)}
+.st.now{border-color:var(--ink);color:var(--ink);font-weight:600}
+.foot{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.ro{background:var(--grey-50);color:var(--ink-2)}
+.diff{display:flex;align-items:baseline;gap:10px;margin-top:4px}
+.diff b{font-family:var(--font-mono);font-weight:300;font-size:40px;color:var(--coral);letter-spacing:-.03em}
+.diff span{font-size:13px;color:var(--muted)}
+.arrow-mid{display:grid;grid-template-columns:1fr 28px 1fr;align-items:end;gap:8px}
+.arrow-mid i{font-style:normal;text-align:center;padding-bottom:12px;color:var(--muted)}
+.stage{border-radius:var(--r-panel);padding:26px;position:relative;overflow:hidden;
+  background:radial-gradient(ellipse 60% 35% at 80% 10%,rgba(255,255,255,.5),transparent 70%),linear-gradient(180deg,#1A70B4,#4A95CF 60%,#8CC0E8)}
+.modal{background:#fff;border-radius:6px;padding:24px;box-shadow:0 24px 60px -20px rgba(0,12,35,.45)}
+.x{width:30px;height:30px;border:1px solid var(--grey-100);border-radius:3px;display:grid;place-items:center;color:var(--muted)}
+.toast{display:flex;align-items:center;gap:10px;background:var(--ink);color:#fff;border-radius:4px;padding:12px 14px;font-size:13px;margin-top:12px}
+.toast i{width:8px;height:8px;border-radius:50%;background:var(--sky-300)}
+.wh{border:1px solid var(--grey-100);border-radius:4px;padding:16px 18px}
+.wh + .wh{margin-top:10px}
+.wh-top{display:flex;justify-content:space-between;align-items:baseline}
+.wh-top b{font-weight:500;font-size:16px}
+.wh-top .pill{margin:0}
+.wh p{font-size:13px;color:var(--muted);margin:4px 0 10px}
+.loc{display:inline-block;font-size:12px;border:1px dashed var(--grey-200);border-radius:3px;padding:3px 8px;margin:0 4px 4px 0;color:var(--ink-2)}
+.loc.add{color:var(--sky-700);border-color:var(--sky-100)}
+.route{font-size:13px;color:var(--ink-2);white-space:nowrap}
+.route span{color:var(--muted)}
+.who{font-size:13px;color:var(--ink-2);white-space:nowrap}
+td.when{font-family:var(--font-mono);font-size:12px;color:var(--ink-2);white-space:nowrap}
+.reason{font-size:12px;color:var(--muted);display:block}
+</style>
+</head>
+<body>
+<div class="grid">
+
+  <section class="p">
+    <h2>Colour</h2>
+    <div class="swatches">
+      <div class="sw"><div class="chip" style="background:#1269AF"></div><b>Sky 700</b><span>#1269AF</span><em>Primary. Page field, stock line, links</em></div>
+      <div class="sw"><div class="chip" style="background:#3C8CC7"></div><b>Sky 500</b><span>#3C8CC7</span><em>Receipts</em></div>
+      <div class="sw"><div class="chip" style="background:#7DB6E3"></div><b>Sky 300</b><span>#7DB6E3</span><em>Chart hatch, transfers</em></div>
+      <div class="sw"><div class="chip" style="background:#CAE4F5"></div><b>Sky 100</b><span>#CAE4F5</span><em>Soft borders</em></div>
+      <div class="sw"><div class="chip" style="background:#EAF4FB"></div><b>Sky 50</b><span>#EAF4FB</span><em>Selected row, focus ring</em></div>
+      <div class="sw"><div class="chip" style="background:#FFFFFF"></div><b>White</b><span>#FFFFFF</span><em>Main panels, inputs</em></div>
+      <div class="sw"><div class="chip" style="background:#F4F6F9"></div><b>Grey 50</b><span>#F4F6F9</span><em>Secondary panels, read-only</em></div>
+      <div class="sw"><div class="chip" style="background:#E8ECF2"></div><b>Grey 100</b><span>#E8ECF2</span><em>Borders, gridlines</em></div>
+      <div class="sw"><div class="chip" style="background:#8A94A6"></div><b>Muted</b><span>#8A94A6</span><em>Labels, axis text</em></div>
+      <div class="sw"><div class="chip" style="background:#000C23"></div><b>Ink</b><span>#000C23</span><em>Text, primary button, deliveries</em></div>
+      <div class="sw"><div class="chip" style="background:#E4573D"></div><b>Coral</b><span>#E4573D</span><em>Low/out of stock, damage, canceled</em></div>
+      <div class="sw"><div class="chip" style="background:#E9A23B"></div><b>Amber</b><span>#E9A23B</span><em>Waiting status only</em></div>
+    </div>
+  </section>
+
+  <section class="p">
+    <h2>Type</h2>
+    <div class="type">
+      <div><div style="font-weight:300;font-size:84px;line-height:.9;letter-spacing:-.045em">412<em style="font-family:var(--font-serif);font-size:52px;color:var(--muted);margin-left:6px;letter-spacing:0">kg</em></div><p class="spec">Inter Tight 300 · hero number + serif unit</p></div>
+      <div><div style="font-size:24px">Stock by warehouse</div><div style="font-size:14px;margin-top:10px;color:var(--ink-2)">5 pcs left in Main warehouse. Reorder at 50.</div><p class="spec">Inter Tight 400 · 24px titles / 14px body</p></div>
+      <div><div class="mono" style="font-weight:300;font-size:40px;letter-spacing:-.03em">14</div><div class="mono" style="font-size:13px;margin-top:6px">WH/OUT/00118 · STL-ROD-012</div><p class="spec">DM Mono · KPIs, refs, SKUs, qty, buttons</p></div>
+      <div><div style="display:flex;align-items:baseline;gap:8px;justify-content:center"><span class="mono" style="font-size:22px">INVENTORY</span><em style="font-family:var(--font-serif);font-size:32px">without</em></div><p class="spec">Serif italic · login headlines, units only</p></div>
+    </div>
+  </section>
+
+  <div class="cols">
+    <section class="p">
+      <h2>Controls</h2>
+      <div class="row">
+        <button class="btn primary">Validate</button>
+        <button class="btn secondary">Save draft</button>
+        <button class="btn danger">Cancel</button>
+        <a class="link" href="#">Open receipts</a>
+      </div>
+      <div class="row" style="margin-top:16px;align-items:flex-end">
+        <div class="field" style="width:220px"><label>Product</label><div class="input">Steel rod 12mm<span class="suffix">STL-ROD-012</span></div></div>
+        <div class="field" style="width:140px"><label>Quantity</label><div class="input focus">50<span class="suffix">kg</span></div></div>
+        <div class="field" style="width:160px"><label>Warehouse</label><div class="input">Main<svg class="chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></div></div>
+      </div>
+      <p class="lbl">Document status (every operation)</p>
+      <div class="row">
+        <span class="badge b-draft"><i></i>Draft</span>
+        <span class="badge b-wait"><i></i>Waiting</span>
+        <span class="badge b-ready"><i></i>Ready</span>
+        <span class="badge b-done"><i></i>Done</span>
+        <span class="badge b-cancel"><i></i>Canceled</span>
+      </div>
+      <p class="lbl">Stock status (products)</p>
+      <div class="row">
+        <span class="badge b-ok"><i></i>In stock</span>
+        <span class="badge b-low"><i></i>Low stock</span>
+        <span class="badge b-out"><i></i>Out of stock</span>
+        <span style="margin-left:14px" class="q-in">+50 kg</span><span class="q-out">−20 pcs</span><span class="q-adj">−3 kg</span>
+      </div>
+    </section>
+
+    <!-- 1. RECEIPT: create → add supplier & products → quantities → validate -->
+    <section class="stage">
+      <div class="modal">
+        <div class="doc-head">
+          <div><h3>WH/IN/00042</h3><p>Receipt from Tata Steel, into Main warehouse</p></div>
+          <span class="x">✕</span>
+        </div>
+        <div class="lines">
+          <div class="line"><span>Steel rod 12mm<span class="sku">STL-ROD-012</span></span><span class="q-in">+50 kg</span></div>
+          <div class="line"><span>Hex bolt M8<span class="sku">BLT-HEX-M8</span></span><span class="q-in">+250 pcs</span></div>
+        </div>
+        <div class="effect">Validating adds 50 kg and 250 pcs to Main warehouse and writes both lines to move history.</div>
+        <div class="foot"><button class="btn secondary">Back</button><button class="btn primary">Validate receipt</button></div>
+      </div>
+      <div class="toast"><i></i>WH/IN/00042 validated. Steel rod 12mm is now 412 kg.</div>
+    </section>
+  </div>
+
+  <div class="cols">
+    <!-- 2. DELIVERY: pick → pack → validate -->
+    <section class="p">
+      <div class="doc-head">
+        <div><h3>WH/OUT/00118</h3><p>Delivery to Sharma Furniture, from Main warehouse</p></div>
+        <span class="badge b-ready"><i></i>Ready</span>
+      </div>
+      <div class="stepper">
+        <div class="st done"><b>1</b>Pick ✓</div>
+        <div class="st now"><b>2</b>Pack</div>
+        <div class="st"><b>3</b>Validate</div>
+      </div>
+      <div class="lines">
+        <div class="line"><span class="l"><span class="cb on">✓</span><span>Hex bolt M8<span class="sku">BLT-HEX-M8 · Rack A-101</span></span></span><span class="q-out">−200 pcs</span></div>
+        <div class="line"><span class="l"><span class="cb on">✓</span><span>Wooden pallet 1200<span class="sku">PKG-PAL-120 · Dispatch bay</span></span></span><span class="q-out">−2 pcs</span></div>
+      </div>
+      <div class="effect"><b>−202</b>pcs leave Main warehouse when you validate.</div>
+      <div class="foot"><button class="btn secondary">Back to picking</button><button class="btn primary">Mark as packed</button></div>
+    </section>
+
+    <!-- 3. ADJUSTMENT: product/location → counted qty → auto update + log -->
+    <section class="p">
+      <div class="doc-head">
+        <div><h3>New adjustment</h3><p>Match the system to what you counted</p></div>
+        <span class="badge b-draft"><i></i>Draft</span>
+      </div>
+      <div class="two">
+        <div class="field"><label>Product</label><div class="input">Steel rod 12mm<svg class="chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></div></div>
+        <div class="field"><label>Location</label><div class="input">Main warehouse<svg class="chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></div></div>
+        <div class="field"><label>In the system</label><div class="input ro">320<span class="suffix">kg</span></div></div>
+        <div class="field"><label>Counted</label><div class="input focus">317<span class="suffix">kg</span></div></div>
+      </div>
+      <div class="two" style="margin-top:12px;align-items:end">
+        <div class="diff"><b>−3</b><span>kg difference</span></div>
+        <div class="field"><label>Reason</label><div class="input">Damaged<svg class="chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></div></div>
+      </div>
+      <div class="foot"><button class="btn secondary">Cancel</button><button class="btn primary">Apply adjustment</button></div>
+    </section>
+  </div>
+
+  <!-- 4. MOVE HISTORY (stock ledger) -->
+  <section class="p">
+    <h2>Move history<small>Every stock change, never edited or deleted</small></h2>
+    <table>
+      <thead><tr><th>Date</th><th>Reference</th><th>Product</th><th>From → To</th><th class="num">Quantity</th><th>Done by</th></tr></thead>
+      <tbody>
+        <tr><td class="when">Sep 26, 11:42</td><td class="ref">WH/IN/00042</td><td>Steel rod 12mm<span class="sku">STL-ROD-012</span></td><td class="route"><span>Vendor: Tata Steel</span> → Main warehouse</td><td class="num q-in">+50 kg</td><td class="who">Arjun K.</td></tr>
+        <tr><td class="when">Sep 26, 10:15</td><td class="ref">WH/OUT/00117</td><td>Hex bolt M8<span class="sku">BLT-HEX-M8</span></td><td class="route">Main warehouse → <span>Customer: Metro Interiors</span></td><td class="num q-out">−200 pcs</td><td class="who">Priya S.</td></tr>
+        <tr><td class="when">Sep 25, 17:30</td><td class="ref">WH/INT/00030</td><td>Steel rod 12mm<span class="sku">STL-ROD-012</span></td><td class="route">Main warehouse → Production floor</td><td class="num" style="color:var(--ink-2)">92 kg</td><td class="who">Ravi M.</td></tr>
+        <tr><td class="when">Sep 25, 16:05</td><td class="ref">WH/ADJ/00009</td><td>Steel rod 12mm<span class="sku">STL-ROD-012</span></td><td class="route">Main warehouse → <span>Inventory loss</span><span class="reason">Reason: damaged</span></td><td class="num q-adj">−3 kg</td><td class="who">Arjun K.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <div class="cols">
+    <!-- 5. INTERNAL TRANSFER -->
+    <section class="p">
+      <div class="doc-head">
+        <div><h3>WH/INT/00031</h3><p>Internal transfer</p></div>
+        <span class="badge b-draft"><i></i>Draft</span>
+      </div>
+      <div class="arrow-mid">
+        <div class="field"><label>From</label><div class="input">Main / Rack A-101<svg class="chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></div></div>
+        <i>→</i>
+        <div class="field"><label>To</label><div class="input">Production floor<svg class="chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></div></div>
+      </div>
+      <div class="two" style="margin-top:12px">
+        <div class="field"><label>Product</label><div class="input">Steel rod 12mm<svg class="chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></div></div>
+        <div class="field"><label>Quantity</label><div class="input focus">92<span class="suffix">kg</span></div></div>
+      </div>
+      <div class="effect" style="margin-top:16px">Total stock stays the same. Only the location changes, and the move is logged.</div>
+      <div class="foot"><button class="btn secondary">Save draft</button><button class="btn primary">Validate transfer</button></div>
+    </section>
+
+    <!-- 6. SETTINGS: WAREHOUSES -->
+    <section class="p">
+      <div class="doc-head" style="align-items:center">
+        <h2 style="margin:0">Warehouses</h2>
+        <button class="btn secondary">+ Add warehouse</button>
+      </div>
+      <div class="wh">
+        <div class="wh-top"><b>Main warehouse</b><span class="pill">MAIN</span></div>
+        <p>Plot 14, Okhla Phase II, New Delhi</p>
+        <span class="loc">Rack A-101</span><span class="loc">Rack A-102</span><span class="loc">Rack B-201</span><span class="loc">Dispatch bay</span><span class="loc add">+ Location</span>
+      </div>
+      <div class="wh">
+        <div class="wh-top"><b>Production floor</b><span class="pill">PROD</span></div>
+        <p>Same site, Building 2</p>
+        <span class="loc">Line 1</span><span class="loc">Line 2</span><span class="loc add">+ Location</span>
+      </div>
+      <div class="wh">
+        <div class="wh-top"><b>Warehouse 2</b><span class="pill">WH2</span></div>
+        <p>Sector 63, Noida</p>
+        <span class="loc">Rack C-01</span><span class="loc">Cold room</span><span class="loc add">+ Location</span>
+      </div>
+    </section>
+  </div>
+</div>
+</body>
+</html>

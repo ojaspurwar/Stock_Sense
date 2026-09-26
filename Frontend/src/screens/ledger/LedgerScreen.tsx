@@ -1,429 +1,238 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import {
-  View,
-  Text,
-  FlatList,
-  TouchableOpacity,
-  StyleSheet,
-  SafeAreaView,
-  ScrollView,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { LocationHeader } from '../../components/LocationHeader';
-import { useLocation } from '../../context/LocationContext';
+import React, { useState, useEffect, useMemo } from 'react';
 import { MobileStorage } from '../../services/storage';
-import { StockLedgerEntry, Product } from '../../types';
+import { StockLedgerEntry, Product, Location } from '../../types';
+import { Pill } from '../../components/ui/Pill';
 
-export const LedgerScreen = () => {
-  const { selectedLocationId } = useLocation();
+export interface LedgerScreenProps {
+  initialProductId?: string;
+  searchQuery?: string;
+  filterWarehouse?: string;
+}
+
+export const LedgerScreen: React.FC<LedgerScreenProps> = ({
+  initialProductId,
+  searchQuery = '',
+  filterWarehouse = 'All',
+}) => {
   const [ledgerEntries, setLedgerEntries] = useState<StockLedgerEntry[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-  const [selectedProductId, setSelectedProductId] = useState<string>('ALL');
-  const [typeFilter, setTypeFilter] = useState<string>('ALL');
-  const [refreshing, setRefreshing] = useState(false);
+  const [locations, setLocations] = useState<Location[]>([]);
 
-  const loadData = useCallback(async () => {
-    const prodId = selectedProductId === 'ALL' ? undefined : selectedProductId;
-    const entries = await MobileStorage.getLedger(prodId, selectedLocationId);
-    setLedgerEntries(entries);
+  // Local filters
+  const [selectedProductId, setSelectedProductId] = useState<string>(initialProductId || 'All');
+  const [selectedType, setSelectedType] = useState<string>('All');
+  const [page, setPage] = useState(1);
+  const rowsPerPage = 15;
 
-    const prods = await MobileStorage.getProducts();
-    setProducts(prods);
-  }, [selectedProductId, selectedLocationId]);
-
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
-
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await loadData();
-    setRefreshing(false);
-  };
-
-  const filteredEntries = ledgerEntries.filter((entry) => {
-    if (typeFilter !== 'ALL' && entry.document_type !== typeFilter) return false;
-    return true;
-  });
-
-  const getDocTypeColor = (type: string) => {
-    switch (type) {
-      case 'RECEIPT':
-        return { bg: '#ecfdf5', text: '#059669', icon: 'arrow-down' };
-      case 'DELIVERY':
-        return { bg: '#eff6ff', text: '#2563eb', icon: 'arrow-up' };
-      case 'TRANSFER':
-        return { bg: '#f5f3ff', text: '#7c3aed', icon: 'swap-horizontal' };
-      case 'ADJUSTMENT':
-        return { bg: '#fef3c7', text: '#d97706', icon: 'git-commit' };
-      default:
-        return { bg: '#f1f5f9', text: '#475569', icon: 'document-text' };
+  const loadData = async () => {
+    try {
+      const [entries, prods, locs] = await Promise.all([
+        MobileStorage.getLedger(),
+        MobileStorage.getProducts(),
+        MobileStorage.getLocations(),
+      ]);
+      setLedgerEntries(entries);
+      setProducts(prods);
+      setLocations(locs);
+    } catch (e) {
+      console.error('Error loading ledger', e);
     }
   };
 
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  useEffect(() => {
+    if (initialProductId) {
+      setSelectedProductId(initialProductId);
+    }
+  }, [initialProductId]);
+
+  const filteredEntries = useMemo(() => {
+    return ledgerEntries.filter((entry) => {
+      // Product filter
+      if (selectedProductId !== 'All' && entry.product_id !== selectedProductId) {
+        return false;
+      }
+
+      // Document Type filter
+      if (selectedType !== 'All' && entry.document_type !== selectedType) {
+        return false;
+      }
+
+      // Warehouse filter
+      if (filterWarehouse !== 'All') {
+        const matchesSource = entry.source_location_name?.includes(filterWarehouse);
+        const matchesDest = entry.destination_location_name?.includes(filterWarehouse);
+        if (!matchesSource && !matchesDest) return false;
+      }
+
+      // Search query
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const matchCode = entry.document_code.toLowerCase().includes(q);
+        const matchProd = entry.product_name.toLowerCase().includes(q);
+        const matchSku = entry.sku.toLowerCase().includes(q);
+        const matchWho = (entry.created_by_name || '').toLowerCase().includes(q);
+        if (!matchCode && !matchProd && !matchSku && !matchWho) return false;
+      }
+
+      return true;
+    });
+  }, [ledgerEntries, selectedProductId, selectedType, filterWarehouse, searchQuery]);
+
+  const totalPages = Math.ceil(filteredEntries.length / rowsPerPage) || 1;
+  const paginated = filteredEntries.slice((page - 1) * rowsPerPage, page * rowsPerPage);
+
   return (
-    <SafeAreaView style={styles.container}>
-      <LocationHeader />
+    <div className="list">
+      <div className="list-head">
+        <div>
+          <h1>
+            Move history<span>{filteredEntries.length}</span>
+          </h1>
+          <p style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>
+            Every stock change, permanently recorded. Never edited or deleted.
+          </p>
+        </div>
 
-      {/* Screen Title & Audit Badge */}
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.title}>Immutable Stock Ledger</Text>
-          <Text style={styles.sub}>Cryptographically atomic double-entry audit trail</Text>
-        </View>
-        <View style={styles.auditBadge}>
-          <Ionicons name="shield-checkmark" size={14} color="#059669" />
-          <Text style={styles.auditBadgeText}>Verified</Text>
-        </View>
-      </View>
+        {/* Filter controls */}
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <div className="field">
+            <div className="input" style={{ height: 36 }}>
+              <select
+                value={selectedType}
+                onChange={(e) => {
+                  setSelectedType(e.target.value);
+                  setPage(1);
+                }}
+              >
+                <option value="All">All Operations</option>
+                <option value="RECEIPT">Receipts</option>
+                <option value="DELIVERY">Deliveries</option>
+                <option value="TRANSFER">Internal Transfers</option>
+                <option value="ADJUSTMENT">Adjustments</option>
+              </select>
+            </div>
+          </div>
 
-      {/* Type Filter Chips */}
-      <View style={styles.typeFilterBar}>
-        {['ALL', 'RECEIPT', 'DELIVERY', 'TRANSFER', 'ADJUSTMENT'].map((type) => (
-          <TouchableOpacity
-            key={type}
-            style={[styles.typeChip, typeFilter === type && styles.typeChipActive]}
-            onPress={() => setTypeFilter(type)}
+          <div className="field">
+            <div className="input" style={{ height: 36 }}>
+              <select
+                value={selectedProductId}
+                onChange={(e) => {
+                  setSelectedProductId(e.target.value);
+                  setPage(1);
+                }}
+              >
+                <option value="All">All Products</option>
+                {products.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} ({p.sku})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Reference</th>
+            <th>Product</th>
+            <th>From → To</th>
+            <th className="num">Quantity</th>
+            <th>Done by</th>
+          </tr>
+        </thead>
+        <tbody>
+          {paginated.map((entry) => {
+            let qtyClass = 'q-in';
+            let qtyPrefix = '+';
+            if (entry.document_type === 'DELIVERY') {
+              qtyClass = 'q-out';
+              qtyPrefix = '−';
+            } else if (entry.document_type === 'ADJUSTMENT') {
+              qtyClass = 'q-adj';
+              qtyPrefix = entry.source_location_id ? '−' : '+';
+            } else if (entry.document_type === 'TRANSFER') {
+              qtyClass = '';
+              qtyPrefix = '';
+            }
+
+            const fromStr = entry.source_location_name || 'Opening Balance';
+            const toStr = entry.destination_location_name || 'Customer';
+
+            return (
+              <tr key={entry.id}>
+                <td className="when">
+                  {new Date(entry.timestamp).toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                  })}{' '}
+                  {new Date(entry.timestamp).toLocaleTimeString('en-US', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: false,
+                  })}
+                </td>
+                <td className="ref">{entry.document_code}</td>
+                <td>
+                  <span className="name">{entry.product_name}</span>
+                  <span className="sku">{entry.sku}</span>
+                </td>
+                <td>
+                  <span className="route">
+                    <span>{fromStr}</span> → <span>{toStr}</span>
+                  </span>
+                  {entry.notes && <span className="reason">{entry.notes}</span>}
+                </td>
+                <td className={`num ${qtyClass}`}>
+                  {qtyPrefix}
+                  {entry.quantity} {entry.unit_of_measure}
+                </td>
+                <td className="who">{entry.created_by_name || 'Staff'}</td>
+              </tr>
+            );
+          })}
+
+          {paginated.length === 0 && (
+            <tr>
+              <td colSpan={6} style={{ textAlign: 'center', padding: '36px 0', color: 'var(--muted)' }}>
+                No ledger entries found.
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+
+      {/* Pager */}
+      <div className="pager">
+        <span>
+          Showing {paginated.length > 0 ? (page - 1) * rowsPerPage + 1 : 0}–
+          {Math.min(page * rowsPerPage, filteredEntries.length)} of {filteredEntries.length}
+        </span>
+        <div className="arrows">
+          <button
+            type="button"
+            disabled={page <= 1}
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
           >
-            <Text style={[styles.typeChipText, typeFilter === type && styles.typeChipTextActive]}>
-              {type}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {/* Product Filter Scroll */}
-      <View style={styles.prodScrollWrap}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.prodScroll}>
-          <TouchableOpacity
-            style={[styles.prodPill, selectedProductId === 'ALL' && styles.prodPillActive]}
-            onPress={() => setSelectedProductId('ALL')}
+            ←
+          </button>
+          <button
+            type="button"
+            disabled={page >= totalPages}
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
           >
-            <Text style={[styles.prodPillText, selectedProductId === 'ALL' && styles.prodPillTextActive]}>
-              All Products ({ledgerEntries.length})
-            </Text>
-          </TouchableOpacity>
-
-          {products.map((p) => (
-            <TouchableOpacity
-              key={p.id}
-              style={[styles.prodPill, selectedProductId === p.id && styles.prodPillActive]}
-              onPress={() => setSelectedProductId(p.id)}
-            >
-              <Text style={[styles.prodPillText, selectedProductId === p.id && styles.prodPillTextActive]}>
-                {p.sku}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
-
-      {/* Ledger Entries List */}
-      <FlatList
-        data={filteredEntries}
-        keyExtractor={(item) => item.id}
-        refreshing={refreshing}
-        onRefresh={onRefresh}
-        contentContainerStyle={styles.listContent}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Ionicons name="receipt-outline" size={48} color="#cbd5e1" />
-            <Text style={styles.emptyTitle}>No ledger transactions</Text>
-            <Text style={styles.emptySub}>Validate operations to generate immutable ledger entries</Text>
-          </View>
-        }
-        renderItem={({ item }) => {
-          const typeStyle = getDocTypeColor(item.document_type);
-          return (
-            <View style={styles.card}>
-              <View style={styles.cardHeader}>
-                <View style={[styles.typeBadge, { backgroundColor: typeStyle.bg }]}>
-                  <Ionicons name={typeStyle.icon as any} size={13} color={typeStyle.text} />
-                  <Text style={[styles.typeText, { color: typeStyle.text }]}>
-                    {item.document_type}
-                  </Text>
-                </View>
-
-                <Text style={styles.timestamp}>
-                  {new Date(item.timestamp).toLocaleString()}
-                </Text>
-              </View>
-
-              <View style={styles.prodRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.prodName}>{item.product_name}</Text>
-                  <Text style={styles.skuText}>{item.sku}</Text>
-                </View>
-
-                <View style={styles.qtyBadge}>
-                  <Text
-                    style={[
-                      styles.qtyVal,
-                      item.document_type === 'RECEIPT' && styles.qtyReceipt,
-                      item.document_type === 'DELIVERY' && styles.qtyDelivery,
-                    ]}
-                  >
-                    {item.document_type === 'RECEIPT' ? '+' : item.document_type === 'DELIVERY' ? '-' : ''}
-                    {item.quantity} {item.unit_of_measure}
-                  </Text>
-                </View>
-              </View>
-
-              {/* Movement Route */}
-              <View style={styles.routeBox}>
-                <View style={styles.routePoint}>
-                  <Text style={styles.routeLabel}>Source</Text>
-                  <Text style={styles.routeValue} numberOfLines={1}>
-                    {item.source_location_name || 'External (Opening/Vendor)'}
-                  </Text>
-                </View>
-
-                <Ionicons name="arrow-forward" size={14} color="#94a3b8" style={{ marginHorizontal: 8 }} />
-
-                <View style={styles.routePoint}>
-                  <Text style={styles.routeLabel}>Destination</Text>
-                  <Text style={styles.routeValue} numberOfLines={1}>
-                    {item.destination_location_name || 'External (Customer/Waste)'}
-                  </Text>
-                </View>
-              </View>
-
-              {/* Footer Info */}
-              <View style={styles.cardFooter}>
-                <Text style={styles.docCodeText}>Doc: {item.document_code}</Text>
-                <Text style={styles.userText}>Operative: {item.created_by_name}</Text>
-              </View>
-
-              {item.notes ? (
-                <Text style={styles.notesText}>Note: {item.notes}</Text>
-              ) : null}
-            </View>
-          );
-        }}
-      />
-    </SafeAreaView>
+            →
+          </button>
+        </div>
+      </div>
+    </div>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f8fafc',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 8,
-  },
-  title: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#0f172a',
-  },
-  sub: {
-    fontSize: 11,
-    color: '#64748b',
-    marginTop: 2,
-  },
-  auditBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#ecfdf5',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  auditBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#059669',
-    marginLeft: 4,
-  },
-  typeFilterBar: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-  },
-  typeChip: {
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 14,
-    marginRight: 6,
-  },
-  typeChipActive: {
-    backgroundColor: '#0f172a',
-    borderColor: '#0f172a',
-  },
-  typeChipText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#64748b',
-  },
-  typeChipTextActive: {
-    color: '#ffffff',
-  },
-  prodScrollWrap: {
-    borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
-    paddingBottom: 6,
-  },
-  prodScroll: {
-    paddingHorizontal: 16,
-  },
-  prodPill: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    backgroundColor: '#f1f5f9',
-    marginRight: 6,
-  },
-  prodPillActive: {
-    backgroundColor: '#e0e7ff',
-  },
-  prodPillText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#475569',
-  },
-  prodPillTextActive: {
-    color: '#4338ca',
-  },
-  listContent: {
-    padding: 16,
-    paddingBottom: 32,
-  },
-  card: {
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 3,
-    elevation: 1,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  typeBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-  },
-  typeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    marginLeft: 4,
-  },
-  timestamp: {
-    fontSize: 10,
-    color: '#94a3b8',
-  },
-  prodRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginVertical: 4,
-  },
-  prodName: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#0f172a',
-  },
-  skuText: {
-    fontSize: 10,
-    color: '#64748b',
-    marginTop: 2,
-  },
-  qtyBadge: {
-    alignItems: 'flex-end',
-  },
-  qtyVal: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#0f172a',
-  },
-  qtyReceipt: {
-    color: '#059669',
-  },
-  qtyDelivery: {
-    color: '#2563eb',
-  },
-  routeBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f8fafc',
-    padding: 8,
-    borderRadius: 10,
-    marginVertical: 8,
-  },
-  routePoint: {
-    flex: 1,
-  },
-  routeLabel: {
-    fontSize: 9,
-    fontWeight: '600',
-    color: '#94a3b8',
-    textTransform: 'uppercase',
-  },
-  routeValue: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#334155',
-    marginTop: 1,
-  },
-  cardFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderTopWidth: 1,
-    borderTopColor: '#f8fafc',
-    paddingTop: 8,
-    marginTop: 4,
-  },
-  docCodeText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#64748b',
-  },
-  userText: {
-    fontSize: 11,
-    color: '#94a3b8',
-  },
-  notesText: {
-    fontSize: 10,
-    color: '#94a3b8',
-    fontStyle: 'italic',
-    marginTop: 6,
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 60,
-  },
-  emptyTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#334155',
-    marginTop: 12,
-  },
-  emptySub: {
-    fontSize: 12,
-    color: '#94a3b8',
-    marginTop: 4,
-  },
-});

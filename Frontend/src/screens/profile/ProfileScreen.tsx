@@ -1,335 +1,125 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  SafeAreaView,
-  TouchableOpacity,
-  ScrollView,
-  TextInput,
-  Alert,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { ApiClient } from '../../services/api';
-import { MobileStorage } from '../../services/storage';
+import { Button } from '../../components/ui/Button';
+import { Input } from '../../components/ui/Input';
+import { Toast } from '../../components/ui/Toast';
 
-export const ProfileScreen = () => {
+export const ProfileScreen: React.FC = () => {
   const { user, switchRole, logout } = useAuth();
-  const [apiUrl, setApiUrl] = useState('');
-  const [dbStats, setDbStats] = useState({ products: 0, locations: 0, ledgerCount: 0 });
 
-  useEffect(() => {
-    ApiClient.getBaseUrl().then(setApiUrl);
-    MobileStorage.getDB().then((db) => {
-      setDbStats({
-        products: db.products.length,
-        locations: db.locations.length,
-        ledgerCount: db.ledger.length,
-      });
-    });
-  }, []);
+  const [currentPwd, setCurrentPwd] = useState('');
+  const [newPwd, setNewPwd] = useState('');
+  const [confirmPwd, setConfirmPwd] = useState('');
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
 
-  const handleSaveApiUrl = async () => {
-    if (apiUrl.trim()) {
-      await ApiClient.setBaseUrl(apiUrl.trim());
-      Alert.alert('Configuration Saved', `API Base URL updated to:\n${apiUrl.trim()}`);
+  const initials = user?.name
+    ? user.name
+        .split(' ')
+        .map((n) => n[0])
+        .join('')
+        .toUpperCase()
+        .slice(0, 2)
+    : 'AK';
+
+  const handleChangePassword = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPwd || newPwd !== confirmPwd) {
+      setToastMsg('Passwords do not match.');
+      return;
     }
-  };
-
-  const handleResetData = () => {
-    Alert.alert(
-      'Reset Demo Database',
-      'This will reset products, locations, and ledger back to default seed data. Proceed?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Reset to Defaults',
-          style: 'destructive',
-          onPress: async () => {
-            await MobileStorage.resetToDefaults();
-            const db = await MobileStorage.getDB();
-            setDbStats({
-              products: db.products.length,
-              locations: db.locations.length,
-              ledgerCount: db.ledger.length,
-            });
-            Alert.alert('Reset Complete', 'Database has been restored to factory seed state.');
-          },
-        },
-      ]
-    );
+    setToastMsg('Password changed successfully.');
+    setCurrentPwd('');
+    setNewPwd('');
+    setConfirmPwd('');
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scroll}>
-        {/* User Card */}
-        <View style={styles.profileCard}>
-          <View style={styles.avatarBig}>
-            <Text style={styles.avatarText}>{user?.name?.charAt(0) || 'U'}</Text>
-          </View>
-          <Text style={styles.userName}>{user?.name}</Text>
-          <Text style={styles.userEmail}>{user?.email}</Text>
+    <div className="list" style={{ maxWidth: 720, margin: '0 auto' }}>
+      <div className="list-head">
+        <h1>My profile</h1>
+      </div>
 
-          <View
-            style={[
-              styles.roleTag,
-              { backgroundColor: user?.role === 'MANAGER' ? '#e0e7ff' : '#ecfdf5' },
-            ]}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
+        <span
+          className="av"
+          style={{
+            width: 56,
+            height: 56,
+            borderRadius: '50%',
+            background: 'var(--sky-50)',
+            color: 'var(--sky-700)',
+            border: '2px solid var(--sky-100)',
+            display: 'grid',
+            placeItems: 'center',
+            fontFamily: 'var(--font-mono)',
+            fontSize: 20,
+            fontWeight: 700,
+          }}
+        >
+          {initials}
+        </span>
+        <div>
+          <h2 style={{ fontSize: 22, fontWeight: 500 }}>{user?.name || 'Arjun Kapoor'}</h2>
+          <p style={{ fontSize: 13, color: 'var(--muted)' }}>{user?.email || 'arjun@kapoorsteel.in'}</p>
+        </div>
+      </div>
+
+      <div className="group" style={{ marginBottom: 24 }}>
+        <h3>Account role</h3>
+        <p className="note">
+          Switch between roles to test permission states and views.
+        </p>
+        <div className="seg2" style={{ maxWidth: 360, marginTop: 8 }}>
+          <span
+            className={user?.role === 'MANAGER' ? 'on' : ''}
+            onClick={() => switchRole('MANAGER')}
           >
-            <Ionicons
-              name={user?.role === 'MANAGER' ? 'shield-checkmark' : 'person'}
-              size={14}
-              color={user?.role === 'MANAGER' ? '#4f46e5' : '#059669'}
-            />
-            <Text
-              style={[
-                styles.roleText,
-                { color: user?.role === 'MANAGER' ? '#4338ca' : '#047857' },
-              ]}
-            >
-              {user?.role === 'MANAGER' ? 'Inventory Manager' : 'Warehouse Staff'}
-            </Text>
-          </View>
-
-          {/* Quick Role Switcher */}
-          <TouchableOpacity
-            style={styles.switchRoleBtn}
-            onPress={() => switchRole(user?.role === 'MANAGER' ? 'STAFF' : 'MANAGER')}
+            Inventory manager
+          </span>
+          <span
+            className={user?.role === 'STAFF' ? 'on' : ''}
+            onClick={() => switchRole('STAFF')}
           >
-            <Ionicons name="repeat" size={16} color="#4f46e5" />
-            <Text style={styles.switchRoleText}>
-              Switch Role to {user?.role === 'MANAGER' ? 'Warehouse Staff' : 'Inventory Manager'}
-            </Text>
-          </TouchableOpacity>
-        </View>
+            Warehouse staff
+          </span>
+        </div>
+      </div>
 
-        {/* System & DB Stats */}
-        <Text style={styles.sectionTitle}>Local IMS Snapshot</Text>
-        <View style={styles.statsCard}>
-          <View style={styles.statItem}>
-            <Text style={styles.statVal}>{dbStats.products}</Text>
-            <Text style={styles.statLabel}>Products</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={styles.statVal}>{dbStats.locations}</Text>
-            <Text style={styles.statLabel}>Locations</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={styles.statVal}>{dbStats.ledgerCount}</Text>
-            <Text style={styles.statLabel}>Ledger Logs</Text>
-          </View>
-        </View>
-
-        {/* Backend API Connection Config */}
-        <Text style={styles.sectionTitle}>Backend API Endpoint</Text>
-        <View style={styles.configCard}>
-          <Text style={styles.configSub}>
-            Configure base URL for FastAPI or Vercel server:
-          </Text>
-          <TextInput
-            style={styles.apiInput}
-            value={apiUrl}
-            onChangeText={setApiUrl}
-            placeholder="http://10.0.2.2:8000/api/v1"
-            autoCapitalize="none"
+      <div className="group">
+        <h3>Change password</h3>
+        <form onSubmit={handleChangePassword} style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 8 }}>
+          <Input
+            label="Current password"
+            type="password"
+            value={currentPwd}
+            onChange={(e) => setCurrentPwd(e.target.value)}
           />
-          <TouchableOpacity style={styles.saveApiBtn} onPress={handleSaveApiUrl}>
-            <Text style={styles.saveApiText}>Save API URL</Text>
-          </TouchableOpacity>
-        </View>
+          <div className="two">
+            <Input
+              label="New password"
+              type="password"
+              value={newPwd}
+              onChange={(e) => setNewPwd(e.target.value)}
+            />
+            <Input
+              label="Confirm new password"
+              type="password"
+              value={confirmPwd}
+              onChange={(e) => setConfirmPwd(e.target.value)}
+            />
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
+            <Button variant="danger" type="button" onClick={logout}>
+              Log out
+            </Button>
+            <Button variant="primary" type="submit">
+              Save password
+            </Button>
+          </div>
+        </form>
+      </div>
 
-        {/* Factory Reset */}
-        <TouchableOpacity style={styles.resetBtn} onPress={handleResetData}>
-          <Ionicons name="refresh" size={16} color="#d97706" />
-          <Text style={styles.resetBtnText}>Restore Default Seed Inventory</Text>
-        </TouchableOpacity>
-
-        {/* Logout */}
-        <TouchableOpacity style={styles.logoutBtn} onPress={logout}>
-          <Ionicons name="log-out" size={18} color="#ef4444" style={{ marginRight: 6 }} />
-          <Text style={styles.logoutBtnText}>Sign Out of StockSense</Text>
-        </TouchableOpacity>
-      </ScrollView>
-    </SafeAreaView>
+      <Toast message={toastMsg} onDismiss={() => setToastMsg(null)} />
+    </div>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f8fafc',
-  },
-  scroll: {
-    padding: 16,
-    paddingBottom: 40,
-  },
-  profileCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 20,
-    padding: 24,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    marginBottom: 20,
-  },
-  avatarBig: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: '#4f46e5',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  avatarText: {
-    color: '#ffffff',
-    fontSize: 28,
-    fontWeight: '800',
-  },
-  userName: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#0f172a',
-  },
-  userEmail: {
-    fontSize: 12,
-    color: '#64748b',
-    marginTop: 2,
-  },
-  roleTag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 12,
-    marginTop: 10,
-  },
-  roleText: {
-    fontSize: 11,
-    fontWeight: '700',
-    marginLeft: 6,
-  },
-  switchRoleBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f1f5f9',
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: 10,
-    marginTop: 16,
-  },
-  switchRoleText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#4f46e5',
-    marginLeft: 6,
-  },
-  sectionTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#475569',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 8,
-    marginTop: 8,
-  },
-  statsCard: {
-    flexDirection: 'row',
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    marginBottom: 16,
-  },
-  statItem: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  statVal: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#0f172a',
-  },
-  statLabel: {
-    fontSize: 11,
-    color: '#64748b',
-    marginTop: 2,
-  },
-  statDivider: {
-    width: 1,
-    height: '100%',
-    backgroundColor: '#f1f5f9',
-  },
-  configCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    marginBottom: 16,
-  },
-  configSub: {
-    fontSize: 11,
-    color: '#64748b',
-    marginBottom: 8,
-  },
-  apiInput: {
-    backgroundColor: '#f8fafc',
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    fontSize: 12,
-    color: '#0f172a',
-  },
-  saveApiBtn: {
-    backgroundColor: '#0f172a',
-    borderRadius: 10,
-    paddingVertical: 10,
-    alignItems: 'center',
-    marginTop: 10,
-  },
-  saveApiText: {
-    color: '#ffffff',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  resetBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#fffbeb',
-    borderWidth: 1,
-    borderColor: '#fde68a',
-    borderRadius: 12,
-    paddingVertical: 12,
-    marginBottom: 12,
-  },
-  resetBtnText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#b45309',
-    marginLeft: 6,
-  },
-  logoutBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#fef2f2',
-    borderWidth: 1,
-    borderColor: '#fecaca',
-    borderRadius: 12,
-    paddingVertical: 13,
-  },
-  logoutBtnText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#ef4444',
-  },
-});

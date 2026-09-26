@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>StockSense · Products</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Instrument+Serif:ital@0;1&family=Inter+Tight:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<style>
+.content{grid-template-rows:44px 1fr;position:relative}
+.list{background:var(--white);border-radius:var(--r-panel);padding:26px 30px;display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.list-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
+.list-head h1{font-size:30px;font-weight:400;letter-spacing:-.015em}
+.list-head h1 span{font-family:var(--font-mono);font-size:14px;color:var(--muted);margin-left:10px;letter-spacing:0}
+.tabs{display:flex;gap:8px}
+.tab{font-size:13px;padding:7px 12px;border:1px solid var(--grey-200);border-radius:999px;color:var(--ink-2);display:flex;gap:6px}
+.tab b{font-family:var(--font-mono);font-weight:400;color:var(--muted)}
+.tab.on{background:var(--ink);border-color:var(--ink);color:#fff}
+.tab.on b{color:rgba(255,255,255,.7)}
+.tab.low b{color:var(--coral)}
+td .name{font-weight:500}
+td.onhand{font-family:var(--font-mono);text-align:right;white-space:nowrap}
+td.onhand small{color:var(--muted);margin-left:4px}
+td.onhand.zero{color:var(--coral)}
+td.rule{font-family:var(--font-mono);font-size:13px;color:var(--ink-2);white-space:nowrap}
+td.cat{color:var(--ink-2)}
+tbody tr:hover td{background:var(--grey-50)}
+.pager{display:flex;justify-content:space-between;align-items:center;margin-top:auto;padding-top:14px;font-size:13px;color:var(--muted)}
+.pager .arrows button{border-color:var(--grey-200);background:#fff;color:var(--ink)}
+
+/* New product drawer (#new) */
+.scrim{position:absolute;inset:0;background:rgba(0,12,35,.28);border-radius:var(--r-panel);display:none}
+.drawer{position:absolute;top:0;right:0;bottom:0;width:460px;background:#fff;border-radius:var(--r-panel);
+  box-shadow:0 24px 60px -20px rgba(0,12,35,.45);display:none;flex-direction:column}
+body.new .scrim{display:block}
+body.new .drawer{display:flex}
+.d-head{display:flex;justify-content:space-between;align-items:flex-start;padding:26px 28px 18px;border-bottom:1px solid var(--grey-100)}
+.d-head h2{font-size:24px;font-weight:400}
+.d-head p{font-size:13px;color:var(--muted);margin-top:4px}
+.x{width:32px;height:32px;border:1px solid var(--grey-100);border-radius:3px;display:grid;place-items:center;color:var(--muted)}
+.d-body{padding:22px 28px;display:flex;flex-direction:column;gap:16px;overflow:auto}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.group{border-top:1px solid var(--grey-100);padding-top:18px;display:flex;flex-direction:column;gap:12px}
+.group h3{font-size:15px;font-weight:500}
+.group h3 span{font-weight:400;color:var(--muted);font-size:13px;margin-left:6px}
+.note{font-size:12px;color:var(--muted);line-height:1.45}
+.d-foot{margin-top:auto;display:flex;justify-content:flex-end;gap:8px;padding:18px 28px;border-top:1px solid var(--grey-100)}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="logo-tile">
+      <span class="logo">stocksense.</span>
+      <span class="logo-mark" aria-hidden="true"><i></i><i class="o"></i><i></i><i></i><i></i><i></i><i></i><i class="o"></i><i></i></span>
+    </div>
+    <nav class="side">
+      <a href="dashboard.html"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>Dashboard</a>
+      <a href="products.html" class="active"><svg viewBox="0 0 24 24"><path d="M3 7l9-4 9 4v10l-9 4-9-4z"/><path d="M3 7l9 4 9-4M12 11v10"/></svg>Products</a>
+      <div class="side-label">Operations</div>
+      <a href="#"><svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 20h16"/></svg>Receipts<span class="count">8</span></a>
+      <a href="#"><svg viewBox="0 0 24 24"><path d="M12 20V8M7 13l5-5 5 5"/><path d="M4 4h16"/></svg>Delivery orders<span class="count">14</span></a>
+      <a href="#"><svg viewBox="0 0 24 24"><path d="M4 8h15l-4-4M20 16H5l4 4"/></svg>Internal transfers<span class="count">3</span></a>
+      <a href="#"><svg viewBox="0 0 24 24"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg>Adjustments</a>
+      <a href="#"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Move history</a>
+      <div class="side-label">Settings</div>
+      <a href="#"><svg viewBox="0 0 24 24"><path d="M3 21V8l9-5 9 5v13"/><path d="M8 21v-7h8v7"/></svg>Warehouses</a>
+      <div class="profile">
+        <div class="me"><span class="av">AK</span><div><b>Arjun Kapoor</b><span>Inventory manager</span></div></div>
+        <a href="#"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>My profile</a>
+        <a href="#"><svg viewBox="0 0 24 24"><path d="M15 4h4v16h-4M10 17l5-5-5-5M15 12H3"/></svg>Log out</a>
+      </div>
+    </nav>
+  </aside>
+
+
+  <div class="content">
+    <div class="topbar">
+      <label class="search">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#000C23" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        Search SKU or product<kbd>/</kbd>
+      </label>
+      <div class="fchip-sky"><small>Category</small>All<svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></div>
+      <div class="fchip-sky"><small>Warehouse</small>All<svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></div>
+      <div class="spacer"></div>
+      <button class="btn-white">+ New product</button>
+    </div>
+
+    <section class="list">
+      <div class="list-head">
+        <h1>Products<span>263</span></h1>
+        <div class="tabs">
+          <span class="tab on">All <b>263</b></span>
+          <span class="tab">In stock <b>248</b></span>
+          <span class="tab low">Low stock <b>7</b></span>
+          <span class="tab low">Out of stock <b>2</b></span>
+        </div>
+      </div>
+      <table>
+        <thead><tr><th>Product</th><th>Category</th><th>Unit</th><th class="num">On hand</th><th>By warehouse</th><th>Reorder min / max</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td><span class="name">Steel rod 12mm</span><span class="sku">STL-ROD-012</span></td><td class="cat">Raw material</td><td>kg</td><td class="onhand">412</td><td><span class="pill">Main 320</span><span class="pill">Production 92</span></td><td class="rule">150 / 600</td><td><span class="badge b-ok"><i></i>In stock</span></td></tr>
+          <tr><td><span class="name">Ball bearings 6203</span><span class="sku">BRG-6203</span></td><td class="cat">Components</td><td>pcs</td><td class="onhand">5</td><td><span class="pill">Main 5</span></td><td class="rule">50 / 400</td><td><span class="badge b-low"><i></i>Low stock</span></td></tr>
+          <tr><td><span class="name">Hex bolt M8</span><span class="sku">BLT-HEX-M8</span></td><td class="cat">Fasteners</td><td>pcs</td><td class="onhand">1,840</td><td><span class="pill">Main 1,200</span><span class="pill">WH 2 640</span></td><td class="rule">500 / 3,000</td><td><span class="badge b-ok"><i></i>In stock</span></td></tr>
+          <tr><td><span class="name">Office chair, ergonomic</span><span class="sku">FUR-CHR-001</span></td><td class="cat">Finished goods</td><td>pcs</td><td class="onhand zero">0</td><td><span style="color:var(--muted)">None</span></td><td class="rule">10 / 40</td><td><span class="badge b-out"><i></i>Out of stock</span></td></tr>
+          <tr><td><span class="name">Steel sheet 2mm</span><span class="sku">STL-SHT-002</span></td><td class="cat">Raw material</td><td>kg</td><td class="onhand">96</td><td><span class="pill">Main 96</span></td><td class="rule">120 / 500</td><td><span class="badge b-low"><i></i>Low stock</span></td></tr>
+          <tr><td><span class="name">Paint primer, grey</span><span class="sku">PNT-PRM-GRY</span></td><td class="cat">Consumables</td><td>L</td><td class="onhand">64</td><td><span class="pill">Production 64</span></td><td class="rule">20 / 100</td><td><span class="badge b-ok"><i></i>In stock</span></td></tr>
+          <tr><td><span class="name">Wooden pallet 1200</span><span class="sku">PKG-PAL-120</span></td><td class="cat">Packaging</td><td>pcs</td><td class="onhand">38</td><td><span class="pill">Main 30</span><span class="pill">WH 2 8</span></td><td class="rule">25 / 80</td><td><span class="badge b-ok"><i></i>In stock</span></td></tr>
+          <tr><td><span class="name">Welding rod E6013</span><span class="sku">WLD-6013</span></td><td class="cat">Consumables</td><td>kg</td><td class="onhand">22</td><td><span class="pill">Production 22</span></td><td class="rule">25 / 100</td><td><span class="badge b-low"><i></i>Low stock</span></td></tr>
+          <tr><td><span class="name">Table frame TF-01</span><span class="sku">FG-TBL-001</span></td><td class="cat">Finished goods</td><td>pcs</td><td class="onhand zero">0</td><td><span style="color:var(--muted)">None</span></td><td class="rule">5 / 30</td><td><span class="badge b-out"><i></i>Out of stock</span></td></tr>
+          <tr><td><span class="name">Cable ties 200mm</span><span class="sku">PKG-CT-200</span></td><td class="cat">Packaging</td><td>pcs</td><td class="onhand">2,400</td><td><span class="pill">Main 2,400</span></td><td class="rule">500 / 5,000</td><td><span class="badge b-ok"><i></i>In stock</span></td></tr>
+          <tr><td><span class="name">Plywood sheet 18mm</span><span class="sku">PLY-18-STD</span></td><td class="cat">Raw material</td><td>pcs</td><td class="onhand">140</td><td><span class="pill">Main 140</span></td><td class="rule">60 / 300</td><td><span class="badge b-ok"><i></i>In stock</span></td></tr>
+          <tr><td><span class="name">Wood screws 40mm</span><span class="sku">FST-WS-40</span></td><td class="cat">Fasteners</td><td>pcs</td><td class="onhand">3,650</td><td><span class="pill">Main 3,000</span><span class="pill">Production 650</span></td><td class="rule">1,000 / 8,000</td><td><span class="badge b-ok"><i></i>In stock</span></td></tr>
+        </tbody>
+      </table>
+      <div class="pager"><span>Showing 1–12 of 263</span><div class="arrows"><button>←</button><button>→</button></div></div>
+    </section>
+
+    <div class="scrim"></div>
+    <aside class="drawer">
+      <div class="d-head"><div><h2>New product</h2><p>Fields marked optional can be filled later.</p></div><span class="x">✕</span></div>
+      <div class="d-body">
+        <div class="field"><label>Name</label><div class="input">Steel rod 16mm</div></div>
+        <div class="two">
+          <div class="field"><label>SKU / code</label><div class="input focus mono">STL-ROD-016</div></div>
+          <div class="field"><label>Category</label><div class="input">Raw material<svg class="chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></div></div>
+        </div>
+        <div class="field"><label>Unit of measure</label><div class="input">kg (kilogram)<svg class="chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></div></div>
+
+        <div class="group">
+          <h3>Initial stock<span>Optional</span></h3>
+          <div class="two">
+            <div class="field"><label>Quantity</label><div class="input">200<span class="suffix">kg</span></div></div>
+            <div class="field"><label>Location</label><div class="input">Main warehouse<svg class="chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></div></div>
+          </div>
+          <p class="note">This is recorded in move history as the opening stock.</p>
+        </div>
+
+        <div class="group">
+          <h3>Reordering rule<span>Optional</span></h3>
+          <div class="two">
+            <div class="field"><label>Minimum</label><div class="input">150<span class="suffix">kg</span></div></div>
+            <div class="field"><label>Maximum</label><div class="input">600<span class="suffix">kg</span></div></div>
+          </div>
+          <p class="note">When stock drops below the minimum, this product shows up in low stock alerts on the dashboard.</p>
+        </div>
+      </div>
+      <div class="d-foot"><button class="btn secondary">Cancel</button><button class="btn primary">Save product</button></div>
+    </aside>
+  </div>
+</div>
+<script>
+const sync = () => document.body.classList.toggle('new', location.hash === '#new');
+window.addEventListener('hashchange', sync); sync();
+</script>
+</body>
+</html>

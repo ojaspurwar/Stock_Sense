@@ -1,966 +1,657 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import {
-  View,
-  Text,
-  FlatList,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  SafeAreaView,
-  Modal,
-  ScrollView,
-  Alert,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { LocationHeader } from '../../components/LocationHeader';
-import { useLocation } from '../../context/LocationContext';
-import { useAuth } from '../../context/AuthContext';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { MobileStorage } from '../../services/storage';
 import { ProductStockSummary, Location } from '../../types';
+import { Badge } from '../../components/ui/Badge';
+import { Pill } from '../../components/ui/Pill';
+import { Button } from '../../components/ui/Button';
+import { Input } from '../../components/ui/Input';
+import { Drawer } from '../../components/ui/Drawer';
+import { Toast } from '../../components/ui/Toast';
+import { TabTransition } from '../../components/motion/TabTransition';
 
-export const ProductsScreen = ({ route }: any) => {
-  const { selectedLocationId } = useLocation();
-  const { user } = useAuth();
+export interface ProductsScreenProps {
+  searchQuery?: string;
+  filterWarehouse?: string;
+  filterCategory?: string;
+  onNavigateToHistory?: (productId: string) => void;
+  openNewProductDrawer?: boolean;
+  onCloseNewProductDrawer?: () => void;
+}
 
+export const ProductsScreen: React.FC<ProductsScreenProps> = ({
+  searchQuery = '',
+  filterWarehouse = 'All',
+  filterCategory = 'All',
+  onNavigateToHistory,
+  openNewProductDrawer = false,
+  onCloseNewProductDrawer,
+}) => {
   const [products, setProducts] = useState<ProductStockSummary[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
-  const [search, setSearch] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
-  const [filterMode, setFilterMode] = useState<'ALL' | 'LOW' | 'OUT'>('ALL');
-  const [refreshing, setRefreshing] = useState(false);
+  const [activeTab, setActiveTab] = useState<'all' | 'instock' | 'low' | 'out'>('all');
+  const [expandedProductId, setExpandedProductId] = useState<string | null>(null);
+  const tabsRef = useRef<HTMLDivElement | null>(null);
+  const [pillStyle, setPillStyle] = useState({ left: 0, width: 0, visible: false });
 
-  // Expanded product ID for location breakdown
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-
-  // New Product Modal
-  const [modalVisible, setModalVisible] = useState(false);
-  const [newProdName, setNewProdName] = useState('');
-  const [newProdSku, setNewProdSku] = useState('');
-  const [newProdCategory, setNewProdCategory] = useState('Raw Materials');
-  const [newProdUom, setNewProdUom] = useState('pcs');
-  const [newProdMin, setNewProdMin] = useState('50');
-  const [newProdInitQty, setNewProdInitQty] = useState('');
-  const [newProdInitLoc, setNewProdInitLoc] = useState('');
-
-  // Edit Product Modal (Reordering Rules & Details)
-  const [editModalVisible, setEditModalVisible] = useState(false);
-  const [editingProduct, setEditingProduct] = useState<ProductStockSummary | null>(null);
-  const [editName, setEditName] = useState('');
-  const [editCategory, setEditCategory] = useState('');
-  const [editUom, setEditUom] = useState('');
-  const [editMinReorder, setEditMinReorder] = useState('');
-
-  const initialFilter = route?.params?.filter;
-
+  // Sliding pill for tabs
   useEffect(() => {
-    if (initialFilter === 'low') {
-      setFilterMode('LOW');
-    }
-  }, [initialFilter]);
+    const updatePill = () => {
+      if (!tabsRef.current) return;
+      const activeEl = tabsRef.current.querySelector('.tab.on') as HTMLElement | null;
+      if (activeEl) {
+        setPillStyle({
+          left: activeEl.offsetLeft,
+          width: activeEl.offsetWidth,
+          visible: true,
+        });
+      }
+    };
+    updatePill();
+    const t = setTimeout(updatePill, 30);
+    window.addEventListener('resize', updatePill);
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener('resize', updatePill);
+    };
+  }, [activeTab]);
 
-  const loadData = useCallback(async () => {
-    const prods = await MobileStorage.getProductStockSummaries(selectedLocationId);
-    setProducts(prods);
-    const locs = await MobileStorage.getLocations();
-    setLocations(locs);
-    if (locs.length > 0 && !newProdInitLoc) {
-      setNewProdInitLoc(locs[0].id);
+  const [page, setPage] = useState(1);
+  const rowsPerPage = 12;
+
+  // Drawer state
+  const [drawerOpen, setDrawerOpen] = useState(openNewProductDrawer);
+  const [editingProduct, setEditingProduct] = useState<ProductStockSummary | null>(null);
+
+  // Form fields
+  const [formName, setFormName] = useState('');
+  const [formSku, setFormSku] = useState('');
+  const [formCategory, setFormCategory] = useState('Raw material');
+  const [formUnit, setFormUnit] = useState('kg');
+  const [formInitialQty, setFormInitialQty] = useState('');
+  const [formLocationId, setFormLocationId] = useState('');
+  const [formMinReorder, setFormMinReorder] = useState('150');
+  const [formMaxReorder, setFormMaxReorder] = useState('600');
+  const [formError, setFormError] = useState<string | null>(null);
+
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
+
+  const loadData = async () => {
+    try {
+      const locs = await MobileStorage.getLocations();
+      setLocations(locs);
+      if (locs.length > 0 && !formLocationId) {
+        setFormLocationId(locs[0].id);
+      }
+
+      let locIdFilter: string | undefined = undefined;
+      if (filterWarehouse !== 'All') {
+        const match = locs.find((l) => l.name === filterWarehouse);
+        if (match) locIdFilter = match.id;
+      }
+
+      const prods = await MobileStorage.getProductStockSummaries(locIdFilter);
+      setProducts(prods);
+    } catch (e) {
+      console.error('Error loading products', e);
     }
-  }, [selectedLocationId, newProdInitLoc]);
+  };
 
   useEffect(() => {
     loadData();
-  }, [loadData]);
+  }, [filterWarehouse]);
 
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await loadData();
-    setRefreshing(false);
-  };
-
-  const categories = ['ALL', ...Array.from(new Set(products.map((p) => p.category)))];
-
-  const filteredProducts = products.filter((p) => {
-    const matchesSearch =
-      p.name.toLowerCase().includes(search.toLowerCase()) ||
-      p.sku.toLowerCase().includes(search.toLowerCase());
-    const matchesCat = selectedCategory === 'ALL' || p.category === selectedCategory;
-    let matchesMode = true;
-    if (filterMode === 'LOW') matchesMode = p.is_low_stock;
-    if (filterMode === 'OUT') matchesMode = p.is_out_of_stock;
-    return matchesSearch && matchesCat && matchesMode;
-  });
-
-  const handleCreateProduct = async () => {
-    if (!newProdName.trim() || !newProdSku.trim()) {
-      Alert.alert('Validation Error', 'Product Name and SKU are required.');
-      return;
+  useEffect(() => {
+    if (openNewProductDrawer) {
+      handleOpenCreate();
     }
+  }, [openNewProductDrawer]);
 
-    const minLevel = parseInt(newProdMin, 10) || 10;
-    const initQty = parseFloat(newProdInitQty) || 0;
-
-    await MobileStorage.createProduct({
-      name: newProdName.trim(),
-      sku: newProdSku.trim().toUpperCase(),
-      category: newProdCategory,
-      unit_of_measure: newProdUom,
-      min_reorder_level: minLevel,
-      initial_stock:
-        initQty > 0
-          ? {
-              location_id: newProdInitLoc || locations[0]?.id,
-              quantity: initQty,
-            }
-          : undefined,
-    });
-
-    setModalVisible(false);
-    setNewProdName('');
-    setNewProdSku('');
-    setNewProdInitQty('');
-    await loadData();
-    Alert.alert('Success', `Product ${newProdSku.toUpperCase()} created successfully.`);
-  };
-
-  const handleOpenEditProduct = (prod: ProductStockSummary) => {
-    setEditingProduct(prod);
-    setEditName(prod.name);
-    setEditCategory(prod.category);
-    setEditUom(prod.unit_of_measure);
-    setEditMinReorder(String(prod.min_reorder_level));
-    setEditModalVisible(true);
-  };
-
-  const handleSaveProductUpdate = async () => {
-    if (!editingProduct) return;
-    if (!editName.trim()) {
-      Alert.alert('Validation Error', 'Product Name is required.');
-      return;
-    }
-    const minLvl = parseInt(editMinReorder, 10) || 10;
-    await MobileStorage.updateProduct(editingProduct.id, {
-      name: editName.trim(),
-      category: editCategory,
-      unit_of_measure: editUom,
-      min_reorder_level: minLvl,
-    });
-    setEditModalVisible(false);
+  const handleOpenCreate = () => {
     setEditingProduct(null);
-    await loadData();
-    Alert.alert('Updated', `Product ${editingProduct.sku} updated successfully.`);
+    setFormName('');
+    setFormSku(`SKU-${Math.floor(100 + Math.random() * 900)}`);
+    setFormCategory('Raw material');
+    setFormUnit('kg');
+    setFormInitialQty('');
+    setFormMinReorder('150');
+    setFormMaxReorder('600');
+    setFormError(null);
+    setDrawerOpen(true);
   };
+
+  const handleOpenEdit = (prod: ProductStockSummary) => {
+    setEditingProduct(prod);
+    setFormName(prod.name);
+    setFormSku(prod.sku);
+    setFormCategory(prod.category);
+    setFormUnit(prod.unit_of_measure);
+    setFormInitialQty('');
+    setFormMinReorder(String(prod.min_reorder_level || 0));
+    setFormMaxReorder(String((prod.min_reorder_level || 50) * 4));
+    setFormError(null);
+    setDrawerOpen(true);
+  };
+
+  const handleCloseDrawer = () => {
+    setDrawerOpen(false);
+    setEditingProduct(null);
+    onCloseNewProductDrawer?.();
+  };
+
+  const handleSaveProduct = async () => {
+    setFormError(null);
+    if (!formName.trim()) {
+      setFormError('Product name is required.');
+      return;
+    }
+    if (!formSku.trim()) {
+      setFormError('SKU code is required.');
+      return;
+    }
+
+    try {
+      if (editingProduct) {
+        // Edit product
+        await MobileStorage.updateProduct(editingProduct.id, {
+          name: formName.trim(),
+          sku: formSku.trim().toUpperCase(),
+          category: formCategory,
+          unit_of_measure: formUnit,
+          min_reorder_level: Number(formMinReorder) || 0,
+        });
+        setToastMsg(`Updated ${formName}`);
+      } else {
+        // Validate SKU unique
+        const existing = products.find(
+          (p) => p.sku.toLowerCase() === formSku.trim().toLowerCase()
+        );
+        if (existing) {
+          setFormError(`A product with SKU ${formSku.toUpperCase()} already exists.`);
+          return;
+        }
+
+        const initQty = Number(formInitialQty);
+        await MobileStorage.createProduct({
+          name: formName.trim(),
+          sku: formSku.trim().toUpperCase(),
+          category: formCategory,
+          unit_of_measure: formUnit,
+          min_reorder_level: Number(formMinReorder) || 0,
+          initial_stock:
+            initQty > 0
+              ? {
+                  location_id: formLocationId || locations[0]?.id || 'loc-main',
+                  quantity: initQty,
+                }
+              : undefined,
+        });
+        setToastMsg(`Created product ${formName}`);
+      }
+
+      await loadData();
+      handleCloseDrawer();
+    } catch (err: any) {
+      setFormError(err.message || 'Error saving product.');
+    }
+  };
+
+  // Filter products by tab, search, warehouse, and category
+  const filteredProducts = useMemo(() => {
+    return products.filter((p) => {
+      // Tab filter
+      if (activeTab === 'instock' && p.total_stock <= 0) return false;
+      if (activeTab === 'low' && !p.is_low_stock) return false;
+      if (activeTab === 'out' && !p.is_out_of_stock) return false;
+
+      // Category filter
+      if (filterCategory !== 'All' && p.category !== filterCategory) return false;
+
+      // Search filter
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const matchesName = p.name.toLowerCase().includes(q);
+        const matchesSku = p.sku.toLowerCase().includes(q);
+        const matchesCat = p.category.toLowerCase().includes(q);
+        if (!matchesName && !matchesSku && !matchesCat) return false;
+      }
+
+      return true;
+    });
+  }, [products, activeTab, filterCategory, searchQuery]);
+
+  // Tab counts
+  const totalCount = products.length;
+  const inStockCount = products.filter((p) => p.total_stock > 0).length;
+  const lowCount = products.filter((p) => p.is_low_stock).length;
+  const outCount = products.filter((p) => p.is_out_of_stock).length;
+
+  // Pagination
+  const totalPages = Math.ceil(filteredProducts.length / rowsPerPage) || 1;
+  const paginated = filteredProducts.slice((page - 1) * rowsPerPage, page * rowsPerPage);
 
   return (
-    <SafeAreaView style={styles.container}>
-      <LocationHeader />
-
-      {/* Search Bar & Action Header */}
-      <View style={styles.searchHeader}>
-        <View style={styles.searchBox}>
-          <Ionicons name="search" size={18} color="#94a3b8" />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search by product name or SKU..."
-            placeholderTextColor="#94a3b8"
-            value={search}
-            onChangeText={setSearch}
-          />
-          {search ? (
-            <TouchableOpacity onPress={() => setSearch('')}>
-              <Ionicons name="close-circle" size={16} color="#94a3b8" />
-            </TouchableOpacity>
-          ) : null}
-        </View>
-
-        {user?.role === 'MANAGER' && (
-          <TouchableOpacity
-            style={styles.addBtn}
-            onPress={() => setModalVisible(true)}
-            activeOpacity={0.8}
+    <div className="list">
+      {/* List Head with Tabs and "+ New product" action */}
+      <div className="list-head">
+        <h1>
+          Products<span>{totalCount}</span>
+        </h1>
+        <div className="tabs" ref={tabsRef}>
+          {pillStyle.visible && (
+            <span
+              className="tab-pill"
+              style={{
+                transform: `translate3d(${pillStyle.left}px, 0, 0)`,
+                width: `${pillStyle.width}px`,
+              }}
+            />
+          )}
+          <span
+            className={`tab ${activeTab === 'all' ? 'on' : ''}`}
+            onClick={() => {
+              setActiveTab('all');
+              setPage(1);
+            }}
           >
-            <Ionicons name="add" size={20} color="#ffffff" />
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {/* Stock Filter Chips */}
-      <View style={styles.filterBar}>
-        <TouchableOpacity
-          style={[styles.filterChip, filterMode === 'ALL' && styles.filterChipActive]}
-          onPress={() => setFilterMode('ALL')}
-        >
-          <Text style={[styles.filterChipText, filterMode === 'ALL' && styles.filterChipTextActive]}>
-            All ({products.length})
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.filterChip, filterMode === 'LOW' && styles.filterChipActiveWarn]}
-          onPress={() => setFilterMode('LOW')}
-        >
-          <Ionicons
-            name="alert-circle"
-            size={12}
-            color={filterMode === 'LOW' ? '#ffffff' : '#f59e0b'}
-            style={{ marginRight: 4 }}
-          />
-          <Text
-            style={[
-              styles.filterChipText,
-              filterMode === 'LOW' && styles.filterChipTextActive,
-            ]}
+            All <b>{totalCount}</b>
+          </span>
+          <span
+            className={`tab ${activeTab === 'instock' ? 'on' : ''}`}
+            onClick={() => {
+              setActiveTab('instock');
+              setPage(1);
+            }}
           >
-            Low Stock ({products.filter((p) => p.is_low_stock).length})
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.filterChip, filterMode === 'OUT' && styles.filterChipActiveDanger]}
-          onPress={() => setFilterMode('OUT')}
-        >
-          <Text
-            style={[
-              styles.filterChipText,
-              filterMode === 'OUT' && styles.filterChipTextActive,
-            ]}
+            In stock <b>{inStockCount}</b>
+          </span>
+          <span
+            className={`tab low ${activeTab === 'low' ? 'on' : ''}`}
+            onClick={() => {
+              setActiveTab('low');
+              setPage(1);
+            }}
           >
-            Out of Stock ({products.filter((p) => p.is_out_of_stock).length})
-          </Text>
-        </TouchableOpacity>
-      </View>
+            Low stock <b>{lowCount}</b>
+          </span>
+          <span
+            className={`tab low ${activeTab === 'out' ? 'on' : ''}`}
+            onClick={() => {
+              setActiveTab('out');
+              setPage(1);
+            }}
+          >
+            Out of stock <b>{outCount}</b>
+          </span>
+        </div>
+      </div>
 
-      {/* Category Pills */}
-      <View style={styles.catScrollWrapper}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.catScroll}>
-          {categories.map((cat) => (
-            <TouchableOpacity
-              key={cat}
-              style={[styles.catPill, selectedCategory === cat && styles.catPillActive]}
-              onPress={() => setSelectedCategory(cat)}
-            >
-              <Text style={[styles.catText, selectedCategory === cat && styles.catTextActive]}>
-                {cat}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
+      {/* Products Table with TabTransition */}
+      <TabTransition activeTab={activeTab} tabOrder={['all', 'instock', 'low', 'out']}>
+        <table>
+          <thead>
+            <tr>
+              <th>Product</th>
+              <th>Category</th>
+              <th>Unit</th>
+              <th className="num">On hand</th>
+              <th>By warehouse</th>
+              <th>Reorder min / max</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {paginated.map((prod) => {
+              const isZero = prod.total_stock <= 0;
+              const reorderMin = prod.min_reorder_level || 0;
+              const reorderMax = reorderMin * 4 || 100;
+              const isExpanded = expandedProductId === prod.id;
 
-      {/* Product List */}
-      <FlatList
-        data={filteredProducts}
-        keyExtractor={(item) => item.id}
-        refreshing={refreshing}
-        onRefresh={onRefresh}
-        contentContainerStyle={styles.listContent}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Ionicons name="cube-outline" size={48} color="#cbd5e1" />
-            <Text style={styles.emptyTitle}>No products found</Text>
-            <Text style={styles.emptySub}>Try searching for another SKU or clear filters</Text>
-          </View>
+              return (
+                <React.Fragment key={prod.id}>
+                  <tr
+                    style={{ cursor: 'pointer' }}
+                    onClick={() => setExpandedProductId(isExpanded ? null : prod.id)}
+                  >
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center' }}>
+                        <svg
+                          viewBox="0 0 24 24"
+                          className={`accordion-chevron ${isExpanded ? 'open' : ''}`}
+                          style={{ width: 14, height: 14, marginRight: 8, flexShrink: 0 }}
+                        >
+                          <path
+                            d="m9 18 6-6-6-6"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                        <div>
+                          <span className="name">{prod.name}</span>
+                          <span className="sku">{prod.sku}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="cat">{prod.category}</td>
+                    <td>{prod.unit_of_measure}</td>
+                    <td className={`onhand ${isZero ? 'zero' : ''}`}>
+                      {prod.total_stock.toLocaleString()}
+                    </td>
+                    <td>
+                      {prod.location_breakdown.filter((l) => l.quantity > 0).length > 0 ? (
+                        prod.location_breakdown
+                          .filter((l) => l.quantity > 0)
+                          .map((l) => (
+                            <Pill key={l.location_id}>
+                              {l.location_name} {l.quantity}
+                            </Pill>
+                          ))
+                      ) : (
+                        <span style={{ color: 'var(--muted)', fontSize: 13 }}>None</span>
+                      )}
+                    </td>
+                    <td className="rule">
+                      {reorderMin.toLocaleString()} / {reorderMax.toLocaleString()}
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                        {prod.is_out_of_stock ? (
+                          <Badge status="out" />
+                        ) : prod.is_low_stock ? (
+                          <Badge status="low" />
+                        ) : (
+                          <Badge status="ok" />
+                        )}
+                        <button
+                          type="button"
+                          className="btn secondary"
+                          style={{ padding: '4px 8px', fontSize: 11 }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenEdit(prod);
+                          }}
+                        >
+                          Edit
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+
+                  {/* Expandable row: stock by location accordion */}
+                  <tr>
+                    <td colSpan={7} style={{ padding: 0, border: 'none' }}>
+                      <div className={`accordion-wrapper ${isExpanded ? 'open' : ''}`}>
+                        <div className="accordion-content">
+                          <div
+                            style={{
+                              padding: '12px 20px',
+                              background: 'var(--grey-50)',
+                              borderBottom: '1px solid var(--grey-200)',
+                              display: 'flex',
+                              gap: 16,
+                              alignItems: 'center',
+                            }}
+                          >
+                            <div
+                              style={{
+                                fontSize: 12,
+                                fontWeight: 600,
+                                color: 'var(--muted)',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.04em',
+                              }}
+                            >
+                              Stock by Location:
+                            </div>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                              {prod.location_breakdown.map((loc) => (
+                                <Pill key={loc.location_id}>
+                                  {loc.location_name}: <b>{loc.quantity} {prod.unit_of_measure}</b>
+                                </Pill>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                </React.Fragment>
+              );
+            })}
+
+            {paginated.length === 0 && (
+              <tr>
+                <td colSpan={7} style={{ textAlign: 'center', padding: '36px 0', color: 'var(--muted)' }}>
+                  No products found matching the criteria.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </TabTransition>
+
+      {/* Pager */}
+      <div className="pager">
+        <span>
+          Showing {paginated.length > 0 ? (page - 1) * rowsPerPage + 1 : 0}–
+          {Math.min(page * rowsPerPage, filteredProducts.length)} of {filteredProducts.length}
+        </span>
+        <div className="arrows">
+          <button
+            type="button"
+            disabled={page <= 1}
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+          >
+            ←
+          </button>
+          <button
+            type="button"
+            disabled={page >= totalPages}
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+          >
+            →
+          </button>
+        </div>
+      </div>
+
+      {/* 460px Slide-in Drawer */}
+      <Drawer
+        isOpen={drawerOpen}
+        onClose={handleCloseDrawer}
+        title={editingProduct ? 'Edit product' : 'New product'}
+        description={
+          editingProduct
+            ? `Update properties and reorder rules for ${editingProduct.sku}.`
+            : 'Fields marked optional can be filled later.'
         }
-        renderItem={({ item }) => {
-          const isExpanded = expandedId === item.id;
-          return (
-            <TouchableOpacity
-              style={styles.card}
-              activeOpacity={0.9}
-              onPress={() => setExpandedId(isExpanded ? null : item.id)}
+        footer={
+          <>
+            <Button variant="secondary" onClick={handleCloseDrawer}>
+              Cancel
+            </Button>
+            <Button variant="primary" onClick={handleSaveProduct}>
+              Save product
+            </Button>
+          </>
+        }
+      >
+        {formError && (
+          <div style={{ color: 'var(--coral)', fontSize: 13, marginBottom: 8 }}>
+            {formError}
+          </div>
+        )}
+
+        <div className="field">
+          <label>Name</label>
+          <div className="input focus">
+            <input
+              type="text"
+              placeholder="e.g. Steel rod 16mm"
+              value={formName}
+              onChange={(e) => setFormName(e.target.value)}
+            />
+          </div>
+        </div>
+
+        <div className="two">
+          <div className="field">
+            <label>SKU / code</label>
+            <div className="input mono">
+              <input
+                type="text"
+                placeholder="e.g. STL-ROD-016"
+                value={formSku}
+                onChange={(e) => setFormSku(e.target.value.toUpperCase())}
+              />
+            </div>
+          </div>
+          <div className="field">
+            <label>Category</label>
+            <div className="input">
+              <select
+                value={formCategory}
+                onChange={(e) => setFormCategory(e.target.value)}
+              >
+                <option value="Raw material">Raw material</option>
+                <option value="Components">Components</option>
+                <option value="Fasteners">Fasteners</option>
+                <option value="Finished goods">Finished goods</option>
+                <option value="Consumables">Consumables</option>
+                <option value="Packaging">Packaging</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div className="field">
+          <label>Unit of measure</label>
+          <div className="input">
+            <select
+              value={formUnit}
+              onChange={(e) => setFormUnit(e.target.value)}
             >
-              <View style={styles.cardHeader}>
-                <View style={{ flex: 1 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <Text style={styles.prodName}>{item.name}</Text>
-                    {user?.role === 'MANAGER' && (
-                      <TouchableOpacity
-                        onPress={() => handleOpenEditProduct(item)}
-                        style={styles.editProdIconBtn}
-                      >
-                        <Ionicons name="pencil" size={14} color="#4f46e5" />
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                  <View style={styles.metaRow}>
-                    <View style={styles.skuBadge}>
-                      <Text style={styles.skuText}>{item.sku}</Text>
-                    </View>
-                    <Text style={styles.categoryText}>{item.category}</Text>
-                  </View>
-                </View>
+              <option value="kg">kg (kilogram)</option>
+              <option value="pcs">pcs (pieces)</option>
+              <option value="L">L (litres)</option>
+              <option value="m">m (metres)</option>
+              <option value="box">box</option>
+            </select>
+          </div>
+        </div>
 
-                <View style={styles.stockCol}>
-                  <Text
-                    style={[
-                      styles.stockVal,
-                      item.is_out_of_stock && styles.stockValDanger,
-                      item.is_low_stock && styles.stockValWarning,
-                    ]}
+        {/* Initial Stock (Only on create) */}
+        {!editingProduct ? (
+          <div className="group">
+            <h3>
+              Initial stock<span>Optional</span>
+            </h3>
+            <div className="two">
+              <div className="field">
+                <label>Quantity</label>
+                <div className="input">
+                  <input
+                    type="number"
+                    placeholder="0"
+                    value={formInitialQty}
+                    onChange={(e) => setFormInitialQty(e.target.value)}
+                  />
+                  <span className="suffix">{formUnit}</span>
+                </div>
+              </div>
+              <div className="field">
+                <label>Location</label>
+                <div className="input">
+                  <select
+                    value={formLocationId}
+                    onChange={(e) => setFormLocationId(e.target.value)}
                   >
-                    {item.total_stock} {item.unit_of_measure}
-                  </Text>
-                  <Text style={styles.reorderText}>Reorder Min: {item.min_reorder_level}</Text>
-                </View>
-              </View>
+                    {locations.map((loc) => (
+                      <option key={loc.id} value={loc.id}>
+                        {loc.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+            <p className="note">This is recorded in move history as the opening stock.</p>
+          </div>
+        ) : (
+          <div className="group">
+            <h3>Stock by location</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
+              {editingProduct.location_breakdown.map((lb) => (
+                <div
+                  key={lb.location_id}
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    padding: '8px 12px',
+                    background: 'var(--grey-50)',
+                    borderRadius: 4,
+                    fontSize: 13,
+                  }}
+                >
+                  <span>{lb.location_name}</span>
+                  <b style={{ fontFamily: 'var(--font-mono)' }}>
+                    {lb.quantity} {editingProduct.unit_of_measure}
+                  </b>
+                </div>
+              ))}
+            </div>
+            <p className="note" style={{ marginTop: 8 }}>
+              <span
+                className="link"
+                style={{ cursor: 'pointer' }}
+                onClick={() => {
+                  handleCloseDrawer();
+                  onNavigateToHistory?.(editingProduct.id);
+                }}
+              >
+                View move history for {editingProduct.sku} →
+              </span>
+            </p>
+          </div>
+        )}
 
-              {/* Reordering Rule Indicator */}
-              <View style={styles.reorderRuleBox}>
-                <Ionicons name="shield-outline" size={12} color="#64748b" />
-                <Text style={styles.reorderRuleText}>
-                  Reordering Rule: Alert triggers when stock ≤ {item.min_reorder_level} {item.unit_of_measure}
-                </Text>
-              </View>
+        {/* Reordering Rules */}
+        <div className="group">
+          <h3>
+            Reordering rule<span>Optional</span>
+          </h3>
+          <div className="two">
+            <div className="field">
+              <label>Minimum</label>
+              <div className="input">
+                <input
+                  type="number"
+                  value={formMinReorder}
+                  onChange={(e) => setFormMinReorder(e.target.value)}
+                />
+                <span className="suffix">{formUnit}</span>
+              </div>
+            </div>
+            <div className="field">
+              <label>Maximum</label>
+              <div className="input">
+                <input
+                  type="number"
+                  value={formMaxReorder}
+                  onChange={(e) => setFormMaxReorder(e.target.value)}
+                />
+                <span className="suffix">{formUnit}</span>
+              </div>
+            </div>
+          </div>
+          <p className="note">
+            When stock drops below the minimum, this product shows up in low stock alerts on the dashboard.
+          </p>
+        </div>
+      </Drawer>
 
-              {/* Status Alert Tags */}
-              <View style={styles.badgeRow}>
-                {item.is_out_of_stock ? (
-                  <View style={[styles.statusTag, styles.statusTagDanger]}>
-                    <Text style={styles.statusTagTextDanger}>OUT OF STOCK</Text>
-                  </View>
-                ) : item.is_low_stock ? (
-                  <View style={[styles.statusTag, styles.statusTagWarning]}>
-                    <Text style={styles.statusTagTextWarning}>LOW STOCK ALERT</Text>
-                  </View>
-                ) : (
-                  <View style={[styles.statusTag, styles.statusTagGood]}>
-                    <Text style={styles.statusTagTextGood}>HEALTHY</Text>
-                  </View>
-                )}
-
-                <View style={styles.expandHint}>
-                  <Text style={styles.expandText}>
-                    {isExpanded ? 'Hide Location Breakdown' : 'View Location Breakdown'}
-                  </Text>
-                  <Ionicons
-                    name={isExpanded ? 'chevron-up' : 'chevron-down'}
-                    size={14}
-                    color="#64748b"
-                  />
-                </View>
-              </View>
-
-              {/* Expandable Location Breakdown */}
-              {isExpanded && (
-                <View style={styles.breakdownBox}>
-                  <Text style={styles.breakdownTitle}>Live Stock by Location:</Text>
-                  {item.location_breakdown.length === 0 ? (
-                    <Text style={styles.breakdownEmpty}>No stock recorded in any location.</Text>
-                  ) : (
-                    item.location_breakdown.map((loc) => (
-                      <View key={loc.location_id} style={styles.locRow}>
-                        <View style={styles.locNameWrap}>
-                          <Ionicons name="location-outline" size={14} color="#64748b" />
-                          <Text style={styles.locName}>{loc.location_name}</Text>
-                        </View>
-                        <Text style={styles.locQty}>
-                          {loc.quantity} {item.unit_of_measure}
-                        </Text>
-                      </View>
-                    ))
-                  )}
-                </View>
-              )}
-            </TouchableOpacity>
-          );
-        }}
-      />
-
-      {/* Add Product Modal (Manager Only) */}
-      <Modal visible={modalVisible} animationType="slide" transparent>
-        <SafeAreaView style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Add New Product</Text>
-              <TouchableOpacity onPress={() => setModalVisible(false)}>
-                <Ionicons name="close" size={24} color="#64748b" />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView contentContainerStyle={styles.formScroll}>
-              <Text style={styles.inputLabel}>Product Name *</Text>
-              <TextInput
-                style={styles.formInput}
-                placeholder="e.g. Copper Wire Spool 2.5mm"
-                value={newProdName}
-                onChangeText={setNewProdName}
-              />
-
-              <Text style={styles.inputLabel}>SKU / Item Code *</Text>
-              <TextInput
-                style={styles.formInput}
-                placeholder="e.g. CPR-WIR-025"
-                autoCapitalize="characters"
-                value={newProdSku}
-                onChangeText={setNewProdSku}
-              />
-
-              <Text style={styles.inputLabel}>Category</Text>
-              <View style={styles.pickerRow}>
-                {['Raw Materials', 'Fasteners', 'Fluids & Chemicals', 'Mechanical', 'Packaging'].map(
-                  (c) => (
-                    <TouchableOpacity
-                      key={c}
-                      style={[
-                        styles.pickerChip,
-                        newProdCategory === c && styles.pickerChipActive,
-                      ]}
-                      onPress={() => setNewProdCategory(c)}
-                    >
-                      <Text
-                        style={[
-                          styles.pickerText,
-                          newProdCategory === c && styles.pickerTextActive,
-                        ]}
-                      >
-                        {c}
-                      </Text>
-                    </TouchableOpacity>
-                  )
-                )}
-              </View>
-
-              <View style={styles.row}>
-                <View style={{ flex: 1, marginRight: 8 }}>
-                  <Text style={styles.inputLabel}>Unit of Measure (UoM)</Text>
-                  <TextInput
-                    style={styles.formInput}
-                    placeholder="pcs, kg, liters, boxes"
-                    value={newProdUom}
-                    onChangeText={setNewProdUom}
-                  />
-                </View>
-
-                <View style={{ flex: 1, marginLeft: 8 }}>
-                  <Text style={styles.inputLabel}>Min Reorder Level</Text>
-                  <TextInput
-                    style={styles.formInput}
-                    placeholder="50"
-                    keyboardType="number-pad"
-                    value={newProdMin}
-                    onChangeText={setNewProdMin}
-                  />
-                </View>
-              </View>
-
-              <Text style={[styles.inputLabel, { marginTop: 12 }]}>
-                Optional Initial Opening Stock
-              </Text>
-              <TextInput
-                style={styles.formInput}
-                placeholder="0"
-                keyboardType="numeric"
-                value={newProdInitQty}
-                onChangeText={setNewProdInitQty}
-              />
-
-              <Text style={styles.inputLabel}>Initial Storage Location</Text>
-              <View style={styles.pickerRow}>
-                {locations.map((loc) => (
-                  <TouchableOpacity
-                    key={loc.id}
-                    style={[
-                      styles.pickerChip,
-                      newProdInitLoc === loc.id && styles.pickerChipActive,
-                    ]}
-                    onPress={() => setNewProdInitLoc(loc.id)}
-                  >
-                    <Text
-                      style={[
-                        styles.pickerText,
-                        newProdInitLoc === loc.id && styles.pickerTextActive,
-                      ]}
-                    >
-                      {loc.name}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              <TouchableOpacity style={styles.saveBtn} onPress={handleCreateProduct}>
-                <Text style={styles.saveBtnText}>Save Product to Catalog</Text>
-              </TouchableOpacity>
-            </ScrollView>
-          </View>
-        </SafeAreaView>
-      </Modal>
-
-      {/* Edit Product Modal (Update Details & Reordering Rules) */}
-      <Modal visible={editModalVisible} animationType="slide" transparent>
-        <SafeAreaView style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <View>
-                <Text style={styles.modalTitle}>Update Product</Text>
-                <Text style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
-                  SKU: {editingProduct?.sku}
-                </Text>
-              </View>
-              <TouchableOpacity onPress={() => setEditModalVisible(false)}>
-                <Ionicons name="close" size={24} color="#64748b" />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView contentContainerStyle={styles.formScroll}>
-              <Text style={styles.inputLabel}>Product Name *</Text>
-              <TextInput
-                style={styles.formInput}
-                value={editName}
-                onChangeText={setEditName}
-              />
-
-              <Text style={styles.inputLabel}>Category</Text>
-              <View style={styles.pickerRow}>
-                {['Raw Materials', 'Fasteners', 'Fluids & Chemicals', 'Mechanical', 'Packaging'].map(
-                  (c) => (
-                    <TouchableOpacity
-                      key={c}
-                      style={[
-                        styles.pickerChip,
-                        editCategory === c && styles.pickerChipActive,
-                      ]}
-                      onPress={() => setEditCategory(c)}
-                    >
-                      <Text
-                        style={[
-                          styles.pickerText,
-                          editCategory === c && styles.pickerTextActive,
-                        ]}
-                      >
-                        {c}
-                      </Text>
-                    </TouchableOpacity>
-                  )
-                )}
-              </View>
-
-              <View style={styles.row}>
-                <View style={{ flex: 1, marginRight: 8 }}>
-                  <Text style={styles.inputLabel}>Unit of Measure</Text>
-                  <TextInput
-                    style={styles.formInput}
-                    value={editUom}
-                    onChangeText={setEditUom}
-                  />
-                </View>
-
-                <View style={{ flex: 1, marginLeft: 8 }}>
-                  <Text style={styles.inputLabel}>Reorder Min Level *</Text>
-                  <TextInput
-                    style={styles.formInput}
-                    keyboardType="number-pad"
-                    value={editMinReorder}
-                    onChangeText={setEditMinReorder}
-                  />
-                </View>
-              </View>
-
-              <View style={styles.reorderExplainer}>
-                <Ionicons name="information-circle" size={16} color="#4f46e5" />
-                <Text style={styles.reorderExplainerText}>
-                  Reordering Rule: Whenever total available stock falls at or below this value, the system triggers a Low Stock Alert across the dashboard and inventory catalog.
-                </Text>
-              </View>
-
-              <TouchableOpacity style={styles.saveBtn} onPress={handleSaveProductUpdate}>
-                <Text style={styles.saveBtnText}>Update Product & Rules</Text>
-              </TouchableOpacity>
-            </ScrollView>
-          </View>
-        </SafeAreaView>
-      </Modal>
-    </SafeAreaView>
+      <Toast message={toastMsg} onDismiss={() => setToastMsg(null)} />
+    </div>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f8fafc',
-  },
-  searchHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 8,
-  },
-  searchBox: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  searchInput: {
-    flex: 1,
-    marginLeft: 8,
-    fontSize: 13,
-    color: '#0f172a',
-  },
-  addBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: '#4f46e5',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginLeft: 10,
-  },
-  filterBar: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-  },
-  filterChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 20,
-    marginRight: 6,
-  },
-  filterChipActive: {
-    backgroundColor: '#4f46e5',
-    borderColor: '#4f46e5',
-  },
-  filterChipActiveWarn: {
-    backgroundColor: '#f59e0b',
-    borderColor: '#f59e0b',
-  },
-  filterChipActiveDanger: {
-    backgroundColor: '#ef4444',
-    borderColor: '#ef4444',
-  },
-  filterChipText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#64748b',
-  },
-  filterChipTextActive: {
-    color: '#ffffff',
-  },
-  catScrollWrapper: {
-    borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
-    paddingBottom: 6,
-  },
-  catScroll: {
-    paddingHorizontal: 16,
-  },
-  catPill: {
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 14,
-    backgroundColor: '#f1f5f9',
-    marginRight: 6,
-  },
-  catPillActive: {
-    backgroundColor: '#e0e7ff',
-  },
-  catText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#475569',
-  },
-  catTextActive: {
-    color: '#4338ca',
-  },
-  listContent: {
-    padding: 16,
-    paddingBottom: 32,
-  },
-  card: {
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 3,
-    elevation: 1,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  prodName: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#0f172a',
-  },
-  metaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 6,
-  },
-  skuBadge: {
-    backgroundColor: '#f1f5f9',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-    marginRight: 8,
-  },
-  skuText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#334155',
-  },
-  categoryText: {
-    fontSize: 11,
-    color: '#64748b',
-  },
-  stockCol: {
-    alignItems: 'flex-end',
-  },
-  stockVal: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#10b981',
-  },
-  stockValWarning: {
-    color: '#f59e0b',
-  },
-  stockValDanger: {
-    color: '#ef4444',
-  },
-  reorderText: {
-    fontSize: 10,
-    color: '#94a3b8',
-    marginTop: 2,
-  },
-  badgeRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 12,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#f8fafc',
-  },
-  statusTag: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  statusTagGood: {
-    backgroundColor: '#ecfdf5',
-  },
-  statusTagWarning: {
-    backgroundColor: '#fef3c7',
-  },
-  statusTagDanger: {
-    backgroundColor: '#fef2f2',
-  },
-  statusTagTextGood: {
-    fontSize: 9,
-    fontWeight: '700',
-    color: '#059669',
-  },
-  statusTagTextWarning: {
-    fontSize: 9,
-    fontWeight: '700',
-    color: '#d97706',
-  },
-  statusTagTextDanger: {
-    fontSize: 9,
-    fontWeight: '700',
-    color: '#dc2626',
-  },
-  expandHint: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  expandText: {
-    fontSize: 11,
-    color: '#64748b',
-    marginRight: 4,
-  },
-  breakdownBox: {
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#f1f5f9',
-    backgroundColor: '#f8fafc',
-    borderRadius: 10,
-    padding: 10,
-  },
-  breakdownTitle: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#475569',
-    marginBottom: 6,
-  },
-  breakdownEmpty: {
-    fontSize: 11,
-    color: '#94a3b8',
-    fontStyle: 'italic',
-  },
-  locRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 4,
-  },
-  locNameWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  locName: {
-    fontSize: 12,
-    color: '#334155',
-    marginLeft: 4,
-  },
-  locQty: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#0f172a',
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 60,
-  },
-  emptyTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#334155',
-    marginTop: 12,
-  },
-  emptySub: {
-    fontSize: 12,
-    color: '#94a3b8',
-    marginTop: 4,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: '#ffffff',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 20,
-    maxHeight: '90%',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#0f172a',
-  },
-  formScroll: {
-    paddingBottom: 32,
-  },
-  inputLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#334155',
-    marginBottom: 6,
-    marginTop: 12,
-  },
-  formInput: {
-    backgroundColor: '#f8fafc',
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    fontSize: 13,
-    color: '#0f172a',
-  },
-  pickerRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginTop: 4,
-  },
-  pickerChip: {
-    backgroundColor: '#f1f5f9',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 10,
-    marginRight: 6,
-    marginBottom: 6,
-  },
-  pickerChipActive: {
-    backgroundColor: '#4f46e5',
-  },
-  pickerText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#475569',
-  },
-  pickerTextActive: {
-    color: '#ffffff',
-  },
-  row: {
-    flexDirection: 'row',
-  },
-  saveBtn: {
-    backgroundColor: '#4f46e5',
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: 'center',
-    marginTop: 24,
-  },
-  saveBtnText: {
-    color: '#ffffff',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  editProdIconBtn: {
-    marginLeft: 8,
-    padding: 4,
-    backgroundColor: '#eef2ff',
-    borderRadius: 6,
-  },
-  reorderRuleBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f8fafc',
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    marginTop: 8,
-  },
-  reorderRuleText: {
-    fontSize: 10,
-    color: '#64748b',
-    marginLeft: 4,
-    fontWeight: '500',
-  },
-  reorderExplainer: {
-    flexDirection: 'row',
-    backgroundColor: '#eff6ff',
-    borderRadius: 10,
-    padding: 10,
-    marginTop: 12,
-  },
-  reorderExplainerText: {
-    fontSize: 11,
-    color: '#1e40af',
-    marginLeft: 6,
-    flex: 1,
-    lineHeight: 16,
-  },
-});

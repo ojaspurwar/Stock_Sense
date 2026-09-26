@@ -1,677 +1,456 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import {
-  View,
-  Text,
-  FlatList,
-  TouchableOpacity,
-  StyleSheet,
-  SafeAreaView,
-  Modal,
-  TextInput,
-  ScrollView,
-  Alert,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { LocationHeader } from '../../components/LocationHeader';
-import { StatusBadge } from '../../components/StatusBadge';
-import { useLocation } from '../../context/LocationContext';
-import { useAuth } from '../../context/AuthContext';
+import React, { useState, useEffect } from 'react';
 import { MobileStorage } from '../../services/storage';
-import { Document, DocumentStatus, Product, Location } from '../../types';
+import { Document, Location, Product } from '../../types';
+import { Badge } from '../../components/ui/Badge';
+import { Button } from '../../components/ui/Button';
+import { Input } from '../../components/ui/Input';
+import { Modal } from '../../components/ui/Modal';
+import { Stepper } from '../../components/ui/Stepper';
+import { Toast } from '../../components/ui/Toast';
 
-export const DeliveriesScreen = () => {
-  const { selectedLocationId } = useLocation();
-  const { user } = useAuth();
+export interface DeliveriesScreenProps {
+  searchQuery?: string;
+  filterWarehouse?: string;
+  autoOpenCreate?: boolean;
+}
 
+export const DeliveriesScreen: React.FC<DeliveriesScreenProps> = ({
+  searchQuery = '',
+  filterWarehouse = 'All',
+  autoOpenCreate = false,
+}) => {
   const [deliveries, setDeliveries] = useState<Document[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
-  const [statusFilter, setStatusFilter] = useState<string>('ALL');
-  const [refreshing, setRefreshing] = useState(false);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [statusFilter, setStatusFilter] = useState<string>('All');
 
-  // New Delivery Modal
-  const [modalVisible, setModalVisible] = useState(false);
-  const [customerName, setCustomerName] = useState('');
+  // Active delivery workflow modal
+  const [activeDelivery, setActiveDelivery] = useState<Document | null>(null);
+  const [stepperStep, setStepperStep] = useState<1 | 2 | 3>(1);
+  const [pickedLines, setPickedLines] = useState<{ [lineId: string]: boolean }>({});
+  const [deliveryError, setDeliveryError] = useState<string | null>(null);
+
+  // Create Delivery modal
+  const [isCreateOpen, setIsCreateOpen] = useState(autoOpenCreate);
+  const [customerName, setCustomerName] = useState('Metro Interiors');
   const [sourceLocationId, setSourceLocationId] = useState('');
   const [selectedProductId, setSelectedProductId] = useState('');
-  const [quantity, setQuantity] = useState('');
-  const [notes, setNotes] = useState('');
-  const [availableStock, setAvailableStock] = useState<number | null>(null);
+  const [quantity, setQuantity] = useState('200');
 
-  const loadData = useCallback(async () => {
-    const filter = statusFilter === 'ALL' ? undefined : (statusFilter as DocumentStatus);
-    const docs = await MobileStorage.getDocuments('DELIVERY', filter, selectedLocationId);
-    setDeliveries(docs);
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
-    const prods = await MobileStorage.getProducts();
-    setProducts(prods);
-    if (prods.length > 0 && !selectedProductId) {
-      setSelectedProductId(prods[0].id);
+  const loadData = async () => {
+    try {
+      const locs = await MobileStorage.getLocations();
+      setLocations(locs);
+      if (locs.length > 0 && !sourceLocationId) {
+        setSourceLocationId(locs[0].id);
+      }
+
+      const prods = await MobileStorage.getProducts();
+      setProducts(prods);
+      if (prods.length > 0 && !selectedProductId) {
+        setSelectedProductId(prods[0].id);
+      }
+
+      let locIdFilter: string | undefined = undefined;
+      if (filterWarehouse !== 'All') {
+        const match = locs.find((l) => l.name === filterWarehouse);
+        if (match) locIdFilter = match.id;
+      }
+
+      const docs = await MobileStorage.getDocuments('DELIVERY', undefined, locIdFilter);
+      setDeliveries(docs);
+    } catch (e) {
+      console.error('Error loading deliveries', e);
     }
-
-    const locs = await MobileStorage.getLocations();
-    setLocations(locs);
-    if (locs.length > 0 && !sourceLocationId) {
-      setSourceLocationId(locs[0].id);
-    }
-  }, [statusFilter, selectedLocationId, selectedProductId, sourceLocationId]);
+  };
 
   useEffect(() => {
     loadData();
-  }, [loadData]);
+  }, [filterWarehouse]);
 
-  // Update available stock preview when product or source location changes
   useEffect(() => {
-    if (selectedProductId && sourceLocationId) {
-      MobileStorage.getStockAtLocation(selectedProductId, sourceLocationId).then(setAvailableStock);
+    if (autoOpenCreate) {
+      setIsCreateOpen(true);
     }
-  }, [selectedProductId, sourceLocationId]);
+  }, [autoOpenCreate]);
 
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await loadData();
-    setRefreshing(false);
+  const handleOpenDeliveryModal = (doc: Document) => {
+    setActiveDelivery(doc);
+    setDeliveryError(null);
+    if (doc.status === 'DONE') {
+      setStepperStep(3);
+      const allPicked: { [id: string]: boolean } = {};
+      doc.lines.forEach((l) => (allPicked[l.id] = true));
+      setPickedLines(allPicked);
+    } else {
+      setStepperStep(1);
+      const initPicked: { [id: string]: boolean } = {};
+      doc.lines.forEach((l) => (initPicked[l.id] = false));
+      setPickedLines(initPicked);
+    }
   };
 
-  const handleValidate = async (id: string, code: string) => {
-    Alert.alert(
-      'Confirm Delivery Dispatch',
-      `Dispatch and validate items for ${code}? Stock will be verified and deducted from the source warehouse in the Double-Entry Ledger.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Dispatch & Deduct Stock',
-          onPress: async () => {
-            const res = await MobileStorage.validateDocument(id);
-            if (res.success) {
-              Alert.alert('Delivery Dispatched', res.message);
-              await loadData();
-            } else {
-              Alert.alert('Insufficient Stock / Error', res.message);
-            }
-          },
-        },
-      ]
-    );
+  const handleTogglePicked = (lineId: string) => {
+    setPickedLines((prev) => ({ ...prev, [lineId]: !prev[lineId] }));
+  };
+
+  const handleMarkAsPacked = () => {
+    const allChecked = activeDelivery?.lines.every((l) => pickedLines[l.id]);
+    if (!allChecked) {
+      setDeliveryError('Please pick and tick all item lines first.');
+      return;
+    }
+    setDeliveryError(null);
+    setStepperStep(2);
+  };
+
+  const handleValidateDelivery = async () => {
+    if (!activeDelivery) return;
+    setIsLoading(true);
+    setDeliveryError(null);
+
+    try {
+      const res = await MobileStorage.validateDocument(activeDelivery.id);
+      if (res.success) {
+        setStepperStep(3);
+        setToastMsg(res.message);
+        await loadData();
+        setActiveDelivery(null);
+      } else {
+        setDeliveryError(res.message);
+      }
+    } catch (err: any) {
+      setDeliveryError(err.message || 'Error validating delivery order');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleCreateDelivery = async () => {
-    if (!customerName.trim()) {
-      Alert.alert('Validation Error', 'Customer / Client name is required.');
+    if (!customerName.trim() || !sourceLocationId || !selectedProductId || !Number(quantity)) {
+      setToastMsg('Please fill all required delivery order fields.');
       return;
-    }
-    const qty = parseFloat(quantity);
-    if (!qty || qty <= 0) {
-      Alert.alert('Validation Error', 'Please enter a valid requested quantity (> 0).');
-      return;
-    }
-
-    if (availableStock !== null && qty > availableStock) {
-      Alert.alert(
-        'Stock Shortage Warning',
-        `Current available stock at selected location is only ${availableStock}. You can still create a draft/waiting order, but validation will require sufficient stock.`
-      );
     }
 
     const prod = products.find((p) => p.id === selectedProductId);
-    const srcLoc = locations.find((l) => l.id === sourceLocationId);
+    const loc = locations.find((l) => l.id === sourceLocationId);
+    if (!prod || !loc) return;
 
-    if (!prod || !srcLoc) {
-      Alert.alert('Validation Error', 'Product and Source Location are required.');
+    // Check available stock
+    const currentStock = await MobileStorage.getStockAtLocation(prod.id, loc.id);
+    if (currentStock < Number(quantity)) {
+      setToastMsg(
+        `Insufficient stock! ${prod.name} has only ${currentStock} ${prod.unit_of_measure} available at ${loc.name}.`
+      );
       return;
     }
 
-    const newCode = `DEL-${new Date().getFullYear()}-${String(
-      Math.floor(Math.random() * 900) + 100
-    )}`;
+    const count = deliveries.length + 1;
+    const code = `WH/OUT/${String(count).padStart(5, '0')}`;
 
-    await MobileStorage.createDocument({
-      code: newCode,
-      type: 'DELIVERY',
-      status: 'WAITING',
-      created_by: user?.id || 'usr-default',
-      creator_name: user?.name || 'Staff Operative',
-      source_location_id: srcLoc.id,
-      source_location_name: srcLoc.name,
-      destination_location_id: null,
-      destination_location_name: `${customerName} (Customer)`,
-      partner_name: customerName.trim(),
-      notes: notes.trim() || undefined,
-      lines: [
-        {
-          id: `line-${Date.now()}`,
-          product_id: prod.id,
-          product_name: prod.name,
-          sku: prod.sku,
-          requested_quantity: qty,
-          processed_quantity: 0,
-          unit_of_measure: prod.unit_of_measure,
-        },
-      ],
-    });
+    setIsLoading(true);
+    try {
+      const newDoc = await MobileStorage.createDocument({
+        code,
+        type: 'DELIVERY',
+        status: 'READY',
+        source_location_id: loc.id,
+        source_location_name: loc.name,
+        destination_location_id: null,
+        destination_location_name: customerName,
+        partner_name: customerName,
+        lines: [
+          {
+            id: `line-${Date.now()}`,
+            product_id: prod.id,
+            product_name: prod.name,
+            sku: prod.sku,
+            requested_quantity: Number(quantity),
+            processed_quantity: Number(quantity),
+            unit_of_measure: prod.unit_of_measure,
+          },
+        ],
+        notes: `Delivery order for ${customerName}`,
+      });
 
-    setModalVisible(false);
-    setCustomerName('');
-    setQuantity('');
-    setNotes('');
-    await loadData();
-    Alert.alert('Order Created', `Delivery Order ${newCode} has been logged in WAITING state.`);
+      setIsCreateOpen(false);
+      setToastMsg(`Created delivery ${code}`);
+      await loadData();
+      handleOpenDeliveryModal(newDoc);
+    } catch (err: any) {
+      setToastMsg(err.message || 'Error creating delivery order');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const statuses = ['ALL', 'DRAFT', 'WAITING', 'READY', 'DONE', 'CANCELED'];
+  const filteredDeliveries = deliveries.filter((doc) => {
+    if (statusFilter !== 'All' && doc.status !== statusFilter.toUpperCase()) {
+      return false;
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      const matchCode = doc.code.toLowerCase().includes(q);
+      const matchPartner = (doc.partner_name || '').toLowerCase().includes(q);
+      const matchLines = doc.lines.some(
+        (l) => l.product_name.toLowerCase().includes(q) || l.sku.toLowerCase().includes(q)
+      );
+      if (!matchCode && !matchPartner && !matchLines) return false;
+    }
+    return true;
+  });
 
   return (
-    <SafeAreaView style={styles.container}>
-      <LocationHeader />
-
-      {/* Header & Status Chips */}
-      <View style={styles.actionHeader}>
-        <View>
-          <Text style={styles.screenTitle}>Delivery Orders</Text>
-          <Text style={styles.screenSub}>Outgoing customer shipments & picking</Text>
-        </View>
-
-        <TouchableOpacity
-          style={styles.createBtn}
-          onPress={() => setModalVisible(true)}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="add" size={18} color="#ffffff" style={{ marginRight: 4 }} />
-          <Text style={styles.createBtnText}>New Delivery</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.statusChipsWrapper}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.statusChips}>
-          {statuses.map((st) => (
-            <TouchableOpacity
-              key={st}
-              style={[styles.statusChip, statusFilter === st && styles.statusChipActive]}
-              onPress={() => setStatusFilter(st)}
-            >
-              <Text
-                style={[
-                  styles.statusChipText,
-                  statusFilter === st && styles.statusChipTextActive,
-                ]}
+    <div className="list">
+      <div className="list-head">
+        <h1>
+          Delivery orders<span>{deliveries.length}</span>
+        </h1>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <div className="tabs">
+            {['All', 'Ready', 'Waiting', 'Draft', 'Done'].map((st) => (
+              <span
+                key={st}
+                className={`tab ${statusFilter === st ? 'on' : ''}`}
+                onClick={() => setStatusFilter(st)}
               >
                 {st}
-              </Text>
-            </TouchableOpacity>
+              </span>
+            ))}
+          </div>
+          <Button variant="primary" onClick={() => setIsCreateOpen(true)}>
+            + New delivery
+          </Button>
+        </div>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Reference</th>
+            <th>Customer</th>
+            <th>Source</th>
+            <th>Products</th>
+            <th>Scheduled</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {filteredDeliveries.map((doc) => (
+            <tr
+              key={doc.id}
+              style={{ cursor: 'pointer' }}
+              onClick={() => handleOpenDeliveryModal(doc)}
+            >
+              <td className="ref">
+                <span className="rt">
+                  <i style={{ background: 'var(--ink)' }}></i>
+                  <span>
+                    {doc.code}
+                    <small>Delivery</small>
+                  </span>
+                </span>
+              </td>
+              <td>{doc.partner_name || 'Customer'}</td>
+              <td>{doc.source_location_name || 'Warehouse'}</td>
+              <td>
+                {doc.lines.map((l) => (
+                  <span key={l.id} style={{ marginRight: 8 }}>
+                    {l.product_name} <b className="q-out">−{l.requested_quantity} {l.unit_of_measure}</b>
+                  </span>
+                ))}
+              </td>
+              <td className="when">
+                {new Date(doc.created_at).toLocaleDateString('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                })}
+              </td>
+              <td>
+                <Badge status={doc.status} />
+              </td>
+            </tr>
           ))}
-        </ScrollView>
-      </View>
 
-      {/* Deliveries List */}
-      <FlatList
-        data={deliveries}
-        keyExtractor={(item) => item.id}
-        refreshing={refreshing}
-        onRefresh={onRefresh}
-        contentContainerStyle={styles.listContent}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Ionicons name="arrow-up-circle-outline" size={48} color="#cbd5e1" />
-            <Text style={styles.emptyTitle}>No delivery orders found</Text>
-            <Text style={styles.emptySub}>Tap &quot;New Delivery&quot; to log outbound orders</Text>
-          </View>
-        }
-        renderItem={({ item }) => (
-          <View style={styles.docCard}>
-            <View style={styles.docHeader}>
-              <View>
-                <Text style={styles.docCode}>{item.code}</Text>
-                <Text style={styles.docDate}>
-                  {new Date(item.created_at).toLocaleDateString()} by {item.creator_name}
-                </Text>
-              </View>
-              <StatusBadge status={item.status} />
-            </View>
+          {filteredDeliveries.length === 0 && (
+            <tr>
+              <td colSpan={6} style={{ textAlign: 'center', padding: '36px 0', color: 'var(--muted)' }}>
+                No delivery orders found.
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
 
-            <View style={styles.routeBox}>
-              <View style={styles.routePoint}>
-                <Ionicons name="location" size={14} color="#0284c7" />
-                <Text style={[styles.routeText, { fontWeight: '700', color: '#0369a1' }]} numberOfLines={1}>
-                  {item.source_location_name}
-                </Text>
-              </View>
-              <Ionicons name="arrow-forward" size={14} color="#94a3b8" style={{ marginHorizontal: 8 }} />
-              <View style={styles.routePoint}>
-                <Ionicons name="people" size={14} color="#64748b" />
-                <Text style={styles.routeText} numberOfLines={1}>
-                  Customer: {item.partner_name || item.destination_location_name || 'External'}
-                </Text>
-              </View>
-            </View>
+      {/* 3-Step Delivery Workflow Modal */}
+      {activeDelivery && (
+        <Modal
+          isOpen={!!activeDelivery}
+          onClose={() => setActiveDelivery(null)}
+          title={activeDelivery.code}
+          subtitle={`Delivery to ${activeDelivery.partner_name || 'Customer'}, from ${
+            activeDelivery.source_location_name || 'Warehouse'
+          }`}
+          footer={
+            <>
+              <Button variant="secondary" onClick={() => setActiveDelivery(null)}>
+                Close
+              </Button>
+              {stepperStep === 1 && activeDelivery.status !== 'DONE' && (
+                <Button variant="primary" onClick={handleMarkAsPacked}>
+                  Mark as packed
+                </Button>
+              )}
+              {stepperStep === 2 && activeDelivery.status !== 'DONE' && (
+                <>
+                  <Button variant="secondary" onClick={() => setStepperStep(1)}>
+                    Back to picking
+                  </Button>
+                  <Button
+                    variant="primary"
+                    disabled={isLoading}
+                    onClick={handleValidateDelivery}
+                  >
+                    {isLoading ? 'Validating...' : 'Validate delivery'}
+                  </Button>
+                </>
+              )}
+            </>
+          }
+        >
+          <Stepper
+            steps={[
+              { number: 1, label: 'Pick' },
+              { number: 2, label: 'Pack' },
+              { number: 3, label: 'Validate' },
+            ]}
+            currentStep={stepperStep}
+          />
 
-            {/* Line items */}
-            <View style={styles.lineItemsBox}>
-              {item.lines.map((l, idx) => (
-                <View key={idx} style={styles.lineRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.lineProd}>{l.product_name}</Text>
-                    <Text style={styles.lineSku}>{l.sku}</Text>
-                  </View>
-                  <Text style={styles.lineQty}>
-                    -{l.requested_quantity} {l.unit_of_measure}
-                  </Text>
-                </View>
-              ))}
-            </View>
+          {deliveryError && (
+            <div
+              style={{
+                color: 'var(--coral)',
+                background: '#FDEEEA',
+                border: '1px solid #F3C3B9',
+                padding: '8px 12px',
+                borderRadius: 4,
+                fontSize: 13,
+                marginTop: 12,
+              }}
+            >
+              {deliveryError}
+            </div>
+          )}
 
-            {item.notes ? (
-              <Text style={styles.notesText}>Note: {item.notes}</Text>
-            ) : null}
+          <div className="lines">
+            {activeDelivery.lines.map((l) => (
+              <div key={l.id} className="line">
+                <span className="l">
+                  {stepperStep === 1 && activeDelivery.status !== 'DONE' && (
+                    <span
+                      className={`cb ${pickedLines[l.id] ? 'on' : ''}`}
+                      onClick={() => handleTogglePicked(l.id)}
+                    >
+                      {pickedLines[l.id] ? '✓' : ''}
+                    </span>
+                  )}
+                  <span>
+                    {l.product_name}
+                    <span className="sku">{l.sku}</span>
+                  </span>
+                </span>
+                <span className="q-out">
+                  −{l.requested_quantity} {l.unit_of_measure}
+                </span>
+              </div>
+            ))}
+          </div>
 
-            {/* Validate Action Button */}
-            {item.status !== 'DONE' && item.status !== 'CANCELED' && (
-              <TouchableOpacity
-                style={styles.validateBtn}
-                onPress={() => handleValidate(item.id, item.code)}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="send" size={15} color="#ffffff" style={{ marginRight: 6 }} />
-                <Text style={styles.validateBtnText}>Validate & Dispatch Stock (-)</Text>
-              </TouchableOpacity>
-            )}
-
-            {item.status === 'DONE' && (
-              <View style={styles.completedBanner}>
-                <Ionicons name="checkmark-circle" size={14} color="#059669" />
-                <Text style={styles.completedText}>Dispatched & Stock Deducted in Ledger</Text>
-              </View>
-            )}
-          </View>
-        )}
-      />
+          <div className="effect">
+            <b>
+              −{activeDelivery.lines.reduce((s, l) => s + l.requested_quantity, 0)}
+            </b>{' '}
+            items leave {activeDelivery.source_location_name || 'Warehouse'} when you validate.
+          </div>
+        </Modal>
+      )}
 
       {/* New Delivery Modal */}
-      <Modal visible={modalVisible} animationType="slide" transparent>
-        <SafeAreaView style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>New Outgoing Delivery Order</Text>
-              <TouchableOpacity onPress={() => setModalVisible(false)}>
-                <Ionicons name="close" size={24} color="#64748b" />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView contentContainerStyle={styles.formScroll}>
-              <Text style={styles.inputLabel}>Customer / Destination Client *</Text>
-              <TextInput
-                style={styles.formInput}
-                placeholder="e.g. Metro Machining Industries"
-                value={customerName}
-                onChangeText={setCustomerName}
-              />
-
-              <Text style={styles.inputLabel}>Source Picking Location *</Text>
-              <View style={styles.pickerWrap}>
-                {locations.map((loc) => (
-                  <TouchableOpacity
-                    key={loc.id}
-                    style={[
-                      styles.pickerOption,
-                      sourceLocationId === loc.id && styles.pickerOptionActive,
-                    ]}
-                    onPress={() => setSourceLocationId(loc.id)}
+      {isCreateOpen && (
+        <Modal
+          isOpen={isCreateOpen}
+          onClose={() => setIsCreateOpen(false)}
+          title="New delivery order"
+          subtitle="Dispatch goods to customer or downstream site"
+          footer={
+            <>
+              <Button variant="secondary" onClick={() => setIsCreateOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                disabled={isLoading}
+                onClick={handleCreateDelivery}
+              >
+                Create delivery
+              </Button>
+            </>
+          }
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <Input
+              label="Customer / Destination"
+              value={customerName}
+              onChange={(e) => setCustomerName(e.target.value)}
+            />
+            <div className="field">
+              <label>Source Warehouse</label>
+              <div className="input">
+                <select
+                  value={sourceLocationId}
+                  onChange={(e) => setSourceLocationId(e.target.value)}
+                >
+                  {locations.map((loc) => (
+                    <option key={loc.id} value={loc.id}>
+                      {loc.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="two">
+              <div className="field">
+                <label>Product</label>
+                <div className="input">
+                  <select
+                    value={selectedProductId}
+                    onChange={(e) => setSelectedProductId(e.target.value)}
                   >
-                    <Text
-                      style={[
-                        styles.pickerOptionText,
-                        sourceLocationId === loc.id && styles.pickerOptionTextActive,
-                      ]}
-                    >
-                      {loc.name} ({loc.code})
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              <Text style={styles.inputLabel}>Select Product to Ship *</Text>
-              <View style={styles.pickerWrap}>
-                {products.map((p) => (
-                  <TouchableOpacity
-                    key={p.id}
-                    style={[
-                      styles.pickerOption,
-                      selectedProductId === p.id && styles.pickerOptionActive,
-                    ]}
-                    onPress={() => setSelectedProductId(p.id)}
-                  >
-                    <Text
-                      style={[
-                        styles.pickerOptionText,
-                        selectedProductId === p.id && styles.pickerOptionTextActive,
-                      ]}
-                      numberOfLines={1}
-                    >
-                      {p.name} ({p.sku})
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              {/* Live stock indicator */}
-              <View style={styles.liveStockBox}>
-                <Ionicons name="information-circle" size={16} color="#0284c7" />
-                <Text style={styles.liveStockText}>
-                  Current stock at selected location:{' '}
-                  <Text style={{ fontWeight: '800', color: '#0f172a' }}>
-                    {availableStock !== null ? `${availableStock}` : 'Checking...'}
-                  </Text>
-                </Text>
-              </View>
-
-              <Text style={styles.inputLabel}>Quantity to Deliver *</Text>
-              <TextInput
-                style={styles.formInput}
-                placeholder="e.g. 20"
-                keyboardType="numeric"
+                    {products.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} ({p.sku})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <Input
+                label="Quantity"
+                type="number"
                 value={quantity}
-                onChangeText={setQuantity}
+                onChange={(e) => setQuantity(e.target.value)}
+                suffix={products.find((p) => p.id === selectedProductId)?.unit_of_measure || 'pcs'}
               />
+            </div>
+          </div>
+        </Modal>
+      )}
 
-              <Text style={styles.inputLabel}>Delivery Instructions / Notes</Text>
-              <TextInput
-                style={styles.formInput}
-                placeholder="Standard freight shipment, attach packing list"
-                value={notes}
-                onChangeText={setNotes}
-              />
-
-              <TouchableOpacity style={styles.submitBtn} onPress={handleCreateDelivery}>
-                <Text style={styles.submitBtnText}>Create Delivery Order</Text>
-              </TouchableOpacity>
-            </ScrollView>
-          </View>
-        </SafeAreaView>
-      </Modal>
-    </SafeAreaView>
+      <Toast message={toastMsg} onDismiss={() => setToastMsg(null)} />
+    </div>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f8fafc',
-  },
-  actionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 8,
-  },
-  screenTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#0f172a',
-  },
-  screenSub: {
-    fontSize: 11,
-    color: '#64748b',
-    marginTop: 2,
-  },
-  createBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#0284c7',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
-  },
-  createBtnText: {
-    color: '#ffffff',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  statusChipsWrapper: {
-    paddingVertical: 6,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
-  },
-  statusChips: {
-    paddingHorizontal: 16,
-  },
-  statusChip: {
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 14,
-    marginRight: 6,
-  },
-  statusChipActive: {
-    backgroundColor: '#0284c7',
-    borderColor: '#0284c7',
-  },
-  statusChipText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#64748b',
-  },
-  statusChipTextActive: {
-    color: '#ffffff',
-  },
-  listContent: {
-    padding: 16,
-    paddingBottom: 32,
-  },
-  docCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 3,
-    elevation: 1,
-  },
-  docHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  docCode: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#0f172a',
-  },
-  docDate: {
-    fontSize: 11,
-    color: '#94a3b8',
-    marginTop: 2,
-  },
-  routeBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f8fafc',
-    padding: 10,
-    borderRadius: 10,
-    marginVertical: 10,
-  },
-  routePoint: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  routeText: {
-    fontSize: 11,
-    color: '#334155',
-    marginLeft: 6,
-  },
-  lineItemsBox: {
-    borderTopWidth: 1,
-    borderTopColor: '#f8fafc',
-    paddingTop: 8,
-  },
-  lineRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 4,
-  },
-  lineProd: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#1e293b',
-  },
-  lineSku: {
-    fontSize: 10,
-    color: '#64748b',
-  },
-  lineQty: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#ef4444',
-  },
-  notesText: {
-    fontSize: 11,
-    color: '#64748b',
-    fontStyle: 'italic',
-    marginTop: 6,
-  },
-  validateBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#0284c7',
-    borderRadius: 10,
-    paddingVertical: 10,
-    marginTop: 12,
-  },
-  validateBtnText: {
-    color: '#ffffff',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  completedBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#ecfdf5',
-    borderRadius: 8,
-    paddingVertical: 6,
-    marginTop: 10,
-  },
-  completedText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#047857',
-    marginLeft: 4,
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 60,
-  },
-  emptyTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#334155',
-    marginTop: 12,
-  },
-  emptySub: {
-    fontSize: 12,
-    color: '#94a3b8',
-    marginTop: 4,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: '#ffffff',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 20,
-    maxHeight: '90%',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#0f172a',
-  },
-  formScroll: {
-    paddingBottom: 32,
-  },
-  inputLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#334155',
-    marginBottom: 6,
-    marginTop: 12,
-  },
-  formInput: {
-    backgroundColor: '#f8fafc',
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    fontSize: 13,
-    color: '#0f172a',
-  },
-  pickerWrap: {
-    marginTop: 4,
-  },
-  pickerOption: {
-    backgroundColor: '#f1f5f9',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
-    marginBottom: 6,
-  },
-  pickerOptionActive: {
-    backgroundColor: '#0284c7',
-  },
-  pickerOptionText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#475569',
-  },
-  pickerOptionTextActive: {
-    color: '#ffffff',
-  },
-  liveStockBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f0f9ff',
-    padding: 10,
-    borderRadius: 8,
-    marginTop: 8,
-  },
-  liveStockText: {
-    fontSize: 12,
-    color: '#0369a1',
-    marginLeft: 6,
-  },
-  submitBtn: {
-    backgroundColor: '#0284c7',
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: 'center',
-    marginTop: 24,
-  },
-  submitBtnText: {
-    color: '#ffffff',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-});

@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>StockSense · Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Instrument+Serif:ital@0;1&family=Inter+Tight:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<style>
+.content{grid-template-rows:44px 116px 1fr 316px}
+
+/* KPI strip: the 5 KPIs from the problem statement */
+.kpis{background:var(--white);border-radius:var(--r-panel);display:grid;grid-template-columns:repeat(5,1fr);padding:20px 0}
+.kpi{padding:0 26px;display:flex;flex-direction:column;justify-content:space-between;text-decoration:none;color:inherit}
+.kpi + .kpi{border-left:1px solid var(--grey-100)}
+.kpi small{font-size:13px;color:var(--muted)}
+.kpi b{font-family:var(--font-mono);font-weight:300;font-size:40px;line-height:1;letter-spacing:-.03em}
+.kpi b .of{color:var(--coral)}
+.kpi span{font-size:12px;color:var(--muted)}
+.kpi span.alert{color:var(--coral)}
+
+/* product stock chart (layout from the dashboard reference) */
+.main{background:var(--white);border-radius:var(--r-panel);padding:26px 0 14px 34px;display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.hero{display:flex;justify-content:space-between;align-items:flex-start;padding-right:34px}
+.hero-left{display:flex;align-items:flex-end;gap:22px}
+.big{font-weight:300;font-size:104px;line-height:.84;letter-spacing:-.045em}
+.big em{font-family:var(--font-serif);font-style:italic;font-size:64px;letter-spacing:0;color:var(--muted);margin-left:8px}
+.hero-meta{display:flex;flex-direction:column;gap:10px;padding-bottom:2px}
+.badge-up{align-self:flex-start;display:inline-flex;gap:5px;background:var(--sky-50);color:var(--sky-700);border:1px solid var(--sky-100);font-size:12px;font-weight:600;padding:3px 9px;border-radius:999px}
+.picker{display:flex;align-items:center;gap:10px;font-size:30px;font-weight:400;letter-spacing:-.01em}
+.picker svg{width:18px;height:18px;stroke:var(--ink);fill:none;stroke-width:2}
+.hero-sub{display:flex;gap:6px;align-items:center}
+.hero-right{display:flex;flex-direction:column;align-items:flex-end;gap:14px}
+.segmented{display:flex;border:1px solid var(--grey-100);border-radius:4px;overflow:hidden}
+.segmented button{font:500 14px var(--font-sans);color:var(--ink-2);background:#fff;border:0;border-left:1px solid var(--grey-100);padding:9px 15px}
+.segmented button:first-child{border-left:0}
+.segmented button.on{background:var(--ink);color:#fff}
+.legend{display:flex;gap:16px;font-size:12px;color:var(--muted)}
+.legend span{display:flex;align-items:center;gap:7px}
+.legend i{display:inline-block;width:16px;height:0;border-top:2px solid var(--sky-700)}
+.legend i.ro{border-top:2px dotted var(--coral)}
+.legend i.bi{width:8px;height:10px;border:0;background:var(--sky-300)}
+.legend i.bo{width:8px;height:10px;border:0;background:var(--grey-200)}
+.chart{position:relative;flex:1;margin-top:8px;min-height:0}
+.chart svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.axis{font-family:var(--font-mono);font-size:11px;fill:var(--muted)}
+
+/* bottom row */
+.bottom{display:grid;grid-template-columns:1.55fr 1fr .95fr;gap:var(--gap);min-height:0}
+.ops table td{padding:8px 10px}
+.ops .rt{display:flex;align-items:center;gap:10px}
+.ops .rt i{width:7px;height:7px;border-radius:50%;flex:none}
+.ops .rt small{display:block;font-family:var(--font-sans);font-size:12px;color:var(--muted);margin-top:1px}
+.ops table th{padding:0 10px 8px}
+.ops .type{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink-2);white-space:nowrap}
+.ops .type i{width:7px;height:7px;border-radius:50%}
+.ops .when{color:var(--muted);font-size:13px;white-space:nowrap}
+.ops tr:last-child td{border-bottom:0}
+
+.wh-stats{display:grid;grid-template-columns:1.3fr 1fr .9fr;margin-top:20px}
+.wh-stats small{display:block;font-size:12px;white-space:nowrap;color:var(--muted);margin-bottom:6px}
+.wh-stats b{font-family:var(--font-mono);font-weight:300;font-size:30px;letter-spacing:-.03em}
+.wh-stats b span{font-size:13px;color:var(--muted);letter-spacing:0;margin-left:4px;font-family:var(--font-sans)}
+.wh-bars{margin-top:auto;display:grid;grid-template-columns:1.3fr 1fr .9fr;align-items:end}
+.hatch{height:var(--h);margin-right:10px;background:repeating-linear-gradient(90deg,var(--c) 0 2px,transparent 2px 5px)}
+.wh-foot{display:flex;justify-content:space-between;margin-top:14px;font-size:13px;color:var(--muted)}
+
+.win-head{position:relative;display:flex;justify-content:space-between;align-items:baseline}
+.win-head .panel-title{color:#fff}
+.win-head span{font-family:var(--font-mono);font-size:12px;opacity:.9}
+.glass .pix{margin-bottom:22px}
+.meter{height:3px;background:rgba(255,255,255,.28);margin-top:12px;border-radius:2px;overflow:hidden}
+.meter i{display:block;height:100%;width:10%;background:var(--coral)}
+.reorder{margin-top:12px;display:inline-block;font-size:13px;font-weight:600;color:var(--ink);background:#fff;border-radius:3px;padding:7px 11px}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="logo-tile">
+      <span class="logo">stocksense.</span>
+      <span class="logo-mark" aria-hidden="true"><i></i><i class="o"></i><i></i><i></i><i></i><i></i><i></i><i class="o"></i><i></i></span>
+    </div>
+    <nav class="side">
+      <a href="dashboard.html" class="active"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>Dashboard</a>
+      <a href="products.html"><svg viewBox="0 0 24 24"><path d="M3 7l9-4 9 4v10l-9 4-9-4z"/><path d="M3 7l9 4 9-4M12 11v10"/></svg>Products</a>
+      <div class="side-label">Operations</div>
+      <a href="#"><svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 20h16"/></svg>Receipts<span class="count">8</span></a>
+      <a href="#"><svg viewBox="0 0 24 24"><path d="M12 20V8M7 13l5-5 5 5"/><path d="M4 4h16"/></svg>Delivery orders<span class="count">14</span></a>
+      <a href="#"><svg viewBox="0 0 24 24"><path d="M4 8h15l-4-4M20 16H5l4 4"/></svg>Internal transfers<span class="count">3</span></a>
+      <a href="#"><svg viewBox="0 0 24 24"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg>Adjustments</a>
+      <a href="#"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Move history</a>
+      <div class="side-label">Settings</div>
+      <a href="#"><svg viewBox="0 0 24 24"><path d="M3 21V8l9-5 9 5v13"/><path d="M8 21v-7h8v7"/></svg>Warehouses</a>
+      <div class="profile">
+        <div class="me"><span class="av">AK</span><div><b>Arjun Kapoor</b><span>Inventory manager</span></div></div>
+        <a href="#"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>My profile</a>
+        <a href="#"><svg viewBox="0 0 24 24"><path d="M15 4h4v16h-4M10 17l5-5-5-5M15 12H3"/></svg>Log out</a>
+      </div>
+    </nav>
+  </aside>
+
+
+  <div class="content">
+
+    <!-- Search + dynamic filters (doc type, status, warehouse, category) -->
+    <div class="topbar">
+      <label class="search">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#000C23" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        Search SKU or product<kbd>/</kbd>
+      </label>
+      <div class="fchip-sky"><small>Type</small>All<svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></div>
+      <div class="fchip-sky"><small>Status</small>All<svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></div>
+      <div class="fchip-sky"><small>Warehouse</small>All<svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></div>
+      <div class="fchip-sky"><small>Category</small>All<svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></div>
+      <div class="spacer"></div>
+      <button class="btn-white">New<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#000C23" stroke-width="2.4"><path d="m6 9 6 6 6-6"/></svg></button>
+    </div>
+
+    <!-- The 5 dashboard KPIs -->
+    <section class="kpis">
+      <a class="kpi" href="#"><small>Products in stock</small><b>248</b><span>of 263 products</span></a>
+      <a class="kpi" href="#"><small>Low / out of stock</small><b>7<span class="of"> / 2</span></b><span class="alert">9 need reorder</span></a>
+      <a class="kpi" href="#"><small>Pending receipts</small><b>8</b><span>3 due today</span></a>
+      <a class="kpi" href="#"><small>Pending deliveries</small><b>14</b><span>5 ready to ship</span></a>
+      <a class="kpi" href="#"><small>Transfers scheduled</small><b>3</b><span>Next today, 16:00</span></a>
+    </section>
+
+    <!-- Stock level of one product over time -->
+    <main class="main">
+      <div class="hero">
+        <div class="hero-left">
+          <div class="big">412<em>kg</em></div>
+          <div class="hero-meta">
+            <span class="badge-up">▲ +50 kg today</span>
+            <div class="picker">Steel rod 12mm<svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></div>
+            <div class="hero-sub"><span class="pill">STL-ROD-012</span><span class="pill">Raw material</span><span class="pill">All warehouses</span></div>
+          </div>
+        </div>
+        <div class="hero-right">
+          <div class="segmented"><button>Week</button><button class="on">Month</button><button>Quarter</button><button>Year</button></div>
+          <div class="legend">
+            <span><i></i>On hand</span>
+            <span><i class="ro"></i>Reorder minimum</span>
+            <span><i class="bi"></i>Received</span>
+            <span><i class="bo"></i>Delivered</span>
+          </div>
+        </div>
+      </div>
+      <div class="chart" id="chart"></div>
+    </main>
+
+    <section class="bottom">
+      <!-- Recent operations (the list the dynamic filters apply to) -->
+      <div class="panel white ops">
+        <div class="panel-head"><h3 class="panel-title">Operations</h3><a class="link" href="#">View all</a></div>
+        <table style="margin-top:10px">
+          <thead><tr><th>Reference</th><th>Partner / route</th><th>Status</th><th>Scheduled</th></tr></thead>
+          <tbody>
+            <tr><td class="ref"><span class="rt"><i style="background:var(--sky-500)"></i><span>WH/IN/00042<small>Receipt</small></span></span></td><td>Tata Steel</td><td><span class="badge b-ready"><i></i>Ready</span></td><td class="when">Today, 11:30</td></tr>
+            <tr><td class="ref"><span class="rt"><i style="background:var(--ink)"></i><span>WH/OUT/00118<small>Delivery</small></span></span></td><td>Sharma Furniture</td><td><span class="badge b-wait"><i></i>Waiting</span></td><td class="when">Today, 14:00</td></tr>
+            <tr><td class="ref"><span class="rt"><i style="background:var(--sky-300)"></i><span>WH/INT/00031<small>Internal transfer</small></span></span></td><td>Main → Production</td><td><span class="badge b-draft"><i></i>Draft</span></td><td class="when">Today, 16:00</td></tr>
+            <tr><td class="ref"><span class="rt"><i style="background:var(--coral)"></i><span>WH/ADJ/00009<small>Adjustment</small></span></span></td><td>3 kg damaged</td><td><span class="badge b-done"><i></i>Done</span></td><td class="when">Sep 25</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Multi-warehouse -->
+      <div class="panel grey">
+        <div class="panel-head"><h3 class="panel-title">Stock by warehouse</h3></div>
+        <div class="wh-stats">
+          <div><small>Main</small><b>186</b></div>
+          <div><small>Production</small><b>74</b></div>
+          <div><small>Warehouse 2</small><b>41</b></div>
+        </div>
+        <div class="wh-bars">
+          <div class="hatch" style="--h:84px;--c:var(--sky-700)"></div>
+          <div class="hatch" style="--h:46px;--c:var(--sky-500)"></div>
+          <div class="hatch" style="--h:28px;--c:var(--sky-300)"></div>
+        </div>
+        <div class="wh-foot"><span>Products held in each</span><a class="link" href="#">Manage</a></div>
+      </div>
+
+      <!-- Low / out of stock alerts -->
+      <div class="window">
+        <div class="win-head"><h3 class="panel-title">Low stock</h3><span>7 LOW  2 OUT</span></div>
+        <div class="glass">
+          <div class="pix" aria-hidden="true"><i></i><i></i><i class="off"></i><i></i><i class="hot"></i><i></i><i class="off"></i><i></i><i></i></div>
+          <h4>Ball bearings 6203</h4>
+          <p>5 pcs left in Main warehouse. Reorder at 50.</p>
+          <div class="meter"><i></i></div>
+          <div class="glass-foot">
+            <span>1 / 9</span>
+            <div class="arrows"><button aria-label="Previous">←</button><button aria-label="Next">→</button></div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+let seed = 11;
+const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+
+(function drawChart(){
+  const el = document.getElementById('chart');
+  const W = el.clientWidth, H = el.clientHeight;
+  const padR = 96, padB = 28, top = 6;
+  const plotW = W - padR, plotH = H - padB - top;
+  const yMin = 0, yMax = 700, reorderMin = 150;
+  const y = v => top + plotH - (v - yMin) / (yMax - yMin) * plotH;
+  const histDays = 30, futureDays = 6, totalDays = histDays + futureDays;
+  const xDay = d => d / totalDays * plotW;
+
+  // stock is a step line: receipts jump up, deliveries step down, one adjustment
+  const events = []; let v = 380;
+  const receipts = {3:150, 9:200, 15:120, 21:180, 26:150, 29:50};
+  for (let d = 0; d < histDays; d++){
+    const moves = 1 + Math.floor(rnd() * 3);
+    let recv = receipts[d] || 0, deliv = 0;
+    for (let m = 0; m < moves; m++){
+      const t = d + (m + 1) / (moves + 1);
+      const q = 8 + Math.round(rnd() * 32);
+      deliv += q; v -= q; events.push([t, v]);
+    }
+    if (recv){ v += recv; events.push([d + .92, v]); }
+    if (d === 24){ v -= 3; events.push([d + .95, v]); }
+    events.push({day:d, recv, deliv});
+  }
+  const pts = events.filter(e => Array.isArray(e));
+  const days = events.filter(e => !Array.isArray(e));
+  const shift = 412 - pts[pts.length - 1][1];
+  pts.forEach((p, i) => p[1] += shift * (i / (pts.length - 1)));
+  pts[pts.length - 1][1] = 412;
+
+  let s = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}">
+  <defs>
+    <pattern id="hatch" width="5" height="10" patternUnits="userSpaceOnUse"><rect width="1" height="10" fill="#7DB6E3"/></pattern>
+    <linearGradient id="fade" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".5"/><stop offset=".85" stop-color="#fff" stop-opacity=".04"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
+    <mask id="m"><rect width="${W}" height="${H}" fill="url(#fade)"/></mask>
+  </defs>`;
+
+  for (let t = 0; t <= yMax; t += 100){
+    s += `<line x1="0" x2="${plotW + 16}" y1="${y(t)}" y2="${y(t)}" stroke="#E8ECF2"/>`;
+    s += `<text class="axis" x="${plotW + 30}" y="${y(t) + 4}">${t} kg</text>`;
+  }
+
+  // daily bars: received (sky) and delivered (grey), scaled small along the base
+  const bs = 0.32;
+  days.forEach(d => {
+    const bw = plotW / totalDays / 2 - 3, bx = xDay(d.day) + 2;
+    if (d.recv) s += `<rect x="${bx}" y="${y(d.recv * bs)}" width="${bw}" height="${y(0) - y(d.recv * bs)}" fill="#7DB6E3"/>`;
+    s += `<rect x="${bx + bw + 2}" y="${y(d.deliv * bs * 1.4)}" width="${bw}" height="${y(0) - y(d.deliv * bs * 1.4)}" fill="#D5DBE4"/>`;
+  });
+
+  // step path
+  let path = `M0 ${y(pts[0][1])}`;
+  let prevY = y(pts[0][1]);
+  pts.forEach(([t, val]) => { const x = xDay(t); path += ` L${x.toFixed(1)} ${prevY.toFixed(1)} L${x.toFixed(1)} ${y(val).toFixed(1)}`; prevY = y(val); });
+  const endX = xDay(histDays);
+  path += ` L${endX} ${prevY}`;
+  s += `<path d="${path} L${endX} ${y(0)} L0 ${y(0)} Z" fill="url(#hatch)" mask="url(#m)"/>`;
+  s += `<path d="${path}" fill="none" stroke="#1269AF" stroke-width="1.8" stroke-linejoin="round"/>`;
+
+  // reorder minimum (from the product's reordering rule)
+  s += `<line x1="0" x2="${plotW + 16}" y1="${y(reorderMin)}" y2="${y(reorderMin)}" stroke="#E4573D" stroke-opacity=".7" stroke-dasharray="2 4"/>`;
+  s += `<text class="axis" x="6" y="${y(reorderMin) - 7}" style="fill:#E4573D">Reorder at 150 kg</text>`;
+
+  // today marker + value pill
+  const ty = y(412);
+  s += `<line x1="0" x2="${plotW}" y1="${ty}" y2="${ty}" stroke="#000C23" stroke-opacity=".3" stroke-dasharray="2 3"/>`;
+  s += `<line x1="${endX}" x2="${endX}" y1="${ty}" y2="${y(0)}" stroke="#000C23" stroke-width="2.5"/>`;
+  s += `<rect x="${endX - 10}" y="${ty - 10}" width="20" height="20" transform="rotate(45 ${endX} ${ty})" fill="#000C23"/>`;
+  s += `<circle cx="${endX}" cy="${ty}" r="2.4" fill="#fff"/>`;
+  const pw = 108, px = plotW - pw + 4;
+  s += `<rect x="${px}" y="${ty - 17}" width="${pw}" height="34" rx="17" fill="#000C23"/>`;
+  s += `<circle cx="${px + 17}" cy="${ty}" r="4" fill="#7DB6E3"/>`;
+  s += `<text x="${px + 29}" y="${ty + 5}" fill="#fff" style="font:500 14px 'DM Mono',monospace">412 kg</text>`;
+
+  const start = new Date(2026, 7, 27);
+  for (let d = histDays % 3; d <= totalDays; d += 3){
+    const dt = new Date(start); dt.setDate(start.getDate() + d);
+    const lbl = d === histDays ? 'Today' : dt.toLocaleString('en-US',{month:'short'}) + ' ' + dt.getDate();
+    s += `<text class="axis" x="${xDay(d)}" y="${H - 4}" text-anchor="middle" ${d===histDays?'style="fill:#000C23;font-weight:500"':''}>${lbl}</text>`;
+  }
+  el.innerHTML = s + '</svg>';
+})();
+</script>
+</body>
+</html>

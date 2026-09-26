@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>StockSense · Log in</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Instrument+Serif:ital@0;1&family=Inter+Tight:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<style>
+/* Layout copied from the video: white panel left, sky right, logo tile + glass bar on top */
+.auth{height:100vh;padding:14px;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:56px 1fr;gap:var(--gap)}
+.auth .logo-tile{padding:0 18px 0 24px}
+.bar{border-radius:var(--r-panel);background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.22);display:flex;align-items:center;justify-content:space-between;padding:0 8px 0 24px;color:#fff;font-size:14px;font-weight:500}
+.bar span{opacity:.8}
+.bar .btn-white{height:40px}
+
+.left{background:var(--white);border-radius:var(--r-panel);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px}
+.col{width:380px}
+.dots{display:flex;gap:5px;justify-content:center;margin-bottom:26px}
+.dots i{width:8px;height:8px;background:var(--ink)}
+.headline{text-align:center;line-height:.98}
+.headline .m{display:block;font-family:var(--font-mono);font-weight:400;font-size:50px;letter-spacing:-.01em}
+.headline .s{display:block;font-family:var(--font-serif);font-style:italic;font-size:58px;line-height:.9}
+.lede{text-align:center;font-size:14px;color:var(--ink-2);line-height:1.5;margin:18px auto 30px;max-width:330px}
+.form{display:flex;flex-direction:column;gap:14px}
+.row{display:flex;justify-content:space-between;align-items:center;font-size:13px}
+.check{display:flex;align-items:center;gap:8px;color:var(--ink-2)}
+.check i{width:16px;height:16px;border:1px solid var(--grey-200);border-radius:3px;display:grid;place-items:center;background:var(--ink);border-color:var(--ink);color:#fff;font-size:11px;font-style:normal}
+.alt{text-align:center;font-size:13px;color:var(--muted);margin-top:18px}
+.seg2{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--grey-200);border-radius:4px;overflow:hidden}
+.seg2 span{padding:11px 12px;font-size:14px;text-align:center;color:var(--ink-2)}
+.seg2 span.on{background:var(--ink);color:#fff}
+.steps{display:flex;justify-content:center;gap:8px;margin-bottom:26px;font-size:12px;color:var(--muted)}
+.steps span{display:flex;align-items:center;gap:6px}
+.steps b{width:20px;height:20px;border-radius:50%;border:1px solid var(--grey-200);display:grid;place-items:center;font-family:var(--font-mono);font-weight:400;font-size:11px}
+.steps .done b{background:var(--sky-50);border-color:var(--sky-100);color:var(--sky-700)}
+.steps .now{color:var(--ink)}
+.steps .now b{background:var(--ink);border-color:var(--ink);color:#fff}
+.steps .line{width:24px;height:1px;background:var(--grey-200)}
+.otp{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}
+.otp span{height:58px;border:1px solid var(--grey-200);border-radius:4px;display:grid;place-items:center;font-family:var(--font-mono);font-size:26px}
+.otp span.focus{border-color:var(--sky-700);box-shadow:0 0 0 3px var(--sky-50)}
+.hint{font-size:13px;color:var(--muted);text-align:center}
+.hint b{font-family:var(--font-mono);font-weight:400;color:var(--ink)}
+
+.right{position:relative;border-radius:var(--r-panel);overflow:hidden;
+  background:
+    radial-gradient(ellipse 45% 30% at 55% 38%, rgba(255,255,255,.55), transparent 70%),
+    radial-gradient(ellipse 35% 22% at 25% 60%, rgba(255,255,255,.35), transparent 70%),
+    radial-gradient(ellipse 40% 25% at 85% 70%, rgba(255,255,255,.3), transparent 70%);}
+.right canvas{position:absolute;inset:0;width:100%;height:100%}
+.right .glass{position:absolute;left:18px;bottom:18px;width:300px}
+.right .glass .pix{margin-bottom:46px}
+.right .arrows{position:absolute;right:18px;bottom:18px}
+</style>
+</head>
+<body data-state="login">
+<div class="auth">
+  <div class="logo-tile">
+    <span class="logo">stocksense.</span>
+    <span class="logo-mark" aria-hidden="true"><i></i><i class="o"></i><i></i><i></i><i></i><i></i><i></i><i class="o"></i><i></i></span>
+  </div>
+  <div class="bar">
+    <span>Inventory for warehouses and factories</span>
+    <button class="btn-white state s-login">Create account</button>
+    <button class="btn-white state s-signup">Log in</button>
+    <button class="btn-white state s-otp">Back to log in</button>
+  </div>
+
+  <section class="left">
+    <!-- LOG IN -->
+    <div class="col state s-login">
+      <div class="dots"><i></i><i></i><i></i></div>
+      <h1 class="headline"><span class="m">INVENTORY</span><span class="s">without</span><span class="m">GUESSWORK</span></h1>
+      <p class="lede">Receipts, deliveries, transfers and stock counts in one place. Updated the moment stock moves.</p>
+      <div class="form">
+        <div class="field"><label>Email</label><div class="input">arjun@kapoorsteel.in</div></div>
+        <div class="field"><label>Password</label><div class="input focus">••••••••••<span class="suffix">Show</span></div></div>
+        <div class="row"><span class="check"><i>✓</i>Keep me logged in</span><a class="link" style="font-size:13px" href="#otp">Forgot password?</a></div>
+        <button class="btn primary block">Log in</button>
+      </div>
+      <p class="alt">New to StockSense? <a class="link" style="font-size:13px" href="#signup">Create an account</a></p>
+    </div>
+
+    <!-- SIGN UP -->
+    <div class="col state s-signup">
+      <div class="dots"><i></i><i></i><i></i></div>
+      <h1 class="headline"><span class="m">SET UP</span><span class="s">your</span><span class="m">WAREHOUSE</span></h1>
+      <p class="lede">Create your account. You can add warehouses and products right after.</p>
+      <div class="form">
+        <div class="field"><label>Full name</label><div class="input">Arjun Kapoor</div></div>
+        <div class="field"><label>Work email</label><div class="input">arjun@kapoorsteel.in</div></div>
+        <div class="field"><label>I am a</label><div class="seg2"><span class="on">Inventory manager</span><span>Warehouse staff</span></div></div>
+        <div class="field"><label>Password</label><div class="input focus">••••••••••<span class="suffix">8+ characters</span></div></div>
+        <button class="btn primary block">Create account</button>
+      </div>
+      <p class="alt">Already have an account? <a class="link" style="font-size:13px" href="#login">Log in</a></p>
+    </div>
+
+    <!-- RESET PASSWORD: step 2, OTP -->
+    <div class="col state s-otp">
+      <div class="steps">
+        <span class="done"><b>✓</b>Email</span><span class="line"></span>
+        <span class="now"><b>2</b>Code</span><span class="line"></span>
+        <span><b>3</b>New password</span>
+      </div>
+      <h1 class="headline"><span class="m">CHECK</span><span class="s">your</span><span class="m">EMAIL</span></h1>
+      <p class="lede">We sent a 6-digit code to arjun@kapoorsteel.in. Enter it below to reset your password.</p>
+      <div class="form">
+        <div class="otp"><span>4</span><span>8</span><span>1</span><span>9</span><span class="focus"></span><span></span></div>
+        <p class="hint">Resend code in <b>0:42</b></p>
+        <button class="btn primary block">Verify code</button>
+      </div>
+      <p class="alt"><a class="link" style="font-size:13px" href="#login">Use a different email</a></p>
+    </div>
+  </section>
+
+  <section class="right">
+    <canvas id="ascii"></canvas>
+    <div class="glass state s-login s-signup" id="card">
+      <div class="pix" aria-hidden="true"><i></i><i></i><i class="off"></i><i></i><i></i><i></i><i class="off"></i><i></i><i></i></div>
+      <h4 id="cardTitle">Receipts</h4>
+      <p id="cardText">Goods arrive from a vendor. You validate, and stock goes up on its own.</p>
+      <div class="glass-foot"><span id="cardPage">1 / 4</span></div>
+    </div>
+    <div class="glass state s-otp">
+      <div class="pix" aria-hidden="true"><i></i><i class="off"></i><i></i><i class="off"></i><i></i><i class="off"></i><i></i><i class="off"></i><i></i></div>
+      <h4>Secure reset</h4>
+      <p>The code works for 10 minutes. We will never ask you to share it.</p>
+    </div>
+    <div class="arrows state s-login s-signup"><button id="prev" aria-label="Previous">←</button><button id="next" aria-label="Next">→</button></div>
+  </section>
+</div>
+
+<script>
+/* screen state from the URL hash: #login (default), #signup, #otp */
+function setState(){ document.body.dataset.state = (location.hash || '#login').slice(1); }
+window.addEventListener('hashchange', setState); setState();
+/* the .state class hides everything; multi-state elements need both classes to show */
+document.querySelectorAll('.state').forEach(el => {
+  const states = [...el.classList].filter(c => c.startsWith('s-')).map(c => c.slice(2));
+  const apply = () => el.style.display = states.includes(document.body.dataset.state) ? '' : 'none';
+  apply(); window.addEventListener('hashchange', apply);
+});
+
+/* glass card carousel: the 4 operations (same motion as the video card) */
+const slides = [
+  ['Receipts', 'Goods arrive from a vendor. You validate, and stock goes up on its own.'],
+  ['Delivery orders', 'Pick, pack, validate. Stock goes down the moment it ships.'],
+  ['Internal transfers', 'Move stock between warehouses and racks. Every move is logged.'],
+  ['Adjustments', 'Enter what you counted. The system fixes the difference and records why.'],
+];
+let i = 0;
+const show = n => {
+  i = (n + slides.length) % slides.length;
+  const card = document.getElementById('card');
+  card.animate([{opacity:0, transform:'translateY(6px)'}, {opacity:1, transform:'none'}], {duration:300, easing:'ease-out'});
+  document.getElementById('cardTitle').textContent = slides[i][0];
+  document.getElementById('cardText').textContent = slides[i][1];
+  document.getElementById('cardPage').textContent = `${i + 1} / ${slides.length}`;
+};
+document.getElementById('prev').onclick = () => show(i - 1);
+document.getElementById('next').onclick = () => show(i + 1);
+if (!matchMedia('(prefers-reduced-motion: reduce)').matches) setInterval(() => show(i + 1), 4000);
+
+/* ASCII crate stack, a nod to the ASCII art in the video but drawn around inventory */
+(function ascii(){
+  const cv = document.getElementById('ascii'), box = cv.parentElement;
+  const dpr = window.devicePixelRatio || 1, W = box.clientWidth, H = box.clientHeight;
+  cv.width = W * dpr; cv.height = H * dpr; const c = cv.getContext('2d'); c.scale(dpr, dpr);
+  const cw = 8.4, ch = 13, cols = Math.ceil(W / cw), rows = Math.ceil(H / ch);
+  let seed = 3; const r = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const s = Math.min(W, H) * .19, ox = W * .52, oy = H * .40;
+  const P = (x, y, z) => [ox + (x - y) * s * .866, oy + (x + y) * s * .5 - z * s];
+  const cubes = [[0,0,0],[1,0,0],[0,1,0],[0,0,1]]
+    .sort((a,b) => (a[0]+a[1]+a[2]) - (b[0]+b[1]+b[2]) || a[2]-b[2]);
+  const inside = (pt, poly) => { let k = false; for (let a = 0, b = poly.length - 1; a < poly.length; b = a++){
+    const [xi, yi] = poly[a], [xj, yj] = poly[b];
+    if ((yi > pt[1]) !== (yj > pt[1]) && pt[0] < (xj - xi) * (pt[1] - yi) / (yj - yi) + xi) k = !k; } return k; };
+  const segDist = (p, a, b) => { const dx = b[0]-a[0], dy = b[1]-a[1];
+    const t = Math.max(0, Math.min(1, ((p[0]-a[0])*dx + (p[1]-a[1])*dy) / (dx*dx + dy*dy)));
+    return Math.hypot(p[0] - a[0] - t*dx, p[1] - a[1] - t*dy); };
+  const nearEdge = (p, poly) => poly.some((a, k) => segDist(p, a, poly[(k + 1) % poly.length]) < 6);
+  const grid = new Array(cols * rows).fill(0);
+  cubes.forEach(([x,y,z]) => {
+    const faces = [
+      [3, [P(x,y,z+1),P(x+1,y,z+1),P(x+1,y+1,z+1),P(x,y+1,z+1)]],
+      [2, [P(x+1,y,z),P(x+1,y+1,z),P(x+1,y+1,z+1),P(x+1,y,z+1)]],
+      [1, [P(x,y+1,z),P(x+1,y+1,z),P(x+1,y+1,z+1),P(x,y+1,z+1)]],
+    ];
+    faces.forEach(([t, poly]) => {
+      for (let gy = 0; gy < rows; gy++) for (let gx = 0; gx < cols; gx++){
+        const pt = [gx * cw + cw / 2, gy * ch + ch / 2];
+        if (inside(pt, poly)) grid[gy * cols + gx] = nearEdge(pt, poly) ? -1 : t;
+      }
+    });
+  });
+  const sets = {1:'-:~=', 2:'#@%&8$', 3:'+*=:'};
+  const alpha = {1:.45, 2:.85, 3:.95};
+  c.font = "12px 'DM Mono', monospace"; c.textBaseline = 'top';
+  for (let gy = 0; gy < rows; gy++) for (let gx = 0; gx < cols; gx++){
+    const t = grid[gy * cols + gx], x = gx * cw, y = gy * ch;
+    if (t === -1) continue;
+    if (t){
+      if (r() < .06) continue;
+      const set = sets[t]; c.fillStyle = `rgba(255,255,255,${alpha[t] * (.7 + r() * .3)})`;
+      c.fillText(set[Math.floor(r() * set.length)], x, y);
+    } else {
+      const dx = (x - ox) / (W * .42), dy = (y - oy - s * .3) / (H * .36), d = dx * dx + dy * dy;
+      if (d < 1 && r() < .16 * (1 - d)){
+        c.fillStyle = `rgba(255,255,255,${.25 + r() * .4})`;
+        c.fillText('-=+*.:'[Math.floor(r() * 6)], x, y);
+      }
+    }
+  }
+})();
+</script>
+</body>
+</html>

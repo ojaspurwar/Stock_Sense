@@ -1,703 +1,389 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import {
-  View,
-  Text,
-  FlatList,
-  TouchableOpacity,
-  StyleSheet,
-  SafeAreaView,
-  Modal,
-  TextInput,
-  ScrollView,
-  Alert,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { LocationHeader } from '../../components/LocationHeader';
-import { StatusBadge } from '../../components/StatusBadge';
-import { useLocation } from '../../context/LocationContext';
-import { useAuth } from '../../context/AuthContext';
+import React, { useState, useEffect } from 'react';
 import { MobileStorage } from '../../services/storage';
-import { Document, DocumentStatus, Product, Location } from '../../types';
+import { Document, Location, Product } from '../../types';
+import { Badge } from '../../components/ui/Badge';
+import { Button } from '../../components/ui/Button';
+import { Input } from '../../components/ui/Input';
+import { Modal } from '../../components/ui/Modal';
+import { Toast } from '../../components/ui/Toast';
 
-export const TransfersScreen = () => {
-  const { selectedLocationId } = useLocation();
-  const { user } = useAuth();
+export interface TransfersScreenProps {
+  searchQuery?: string;
+  filterWarehouse?: string;
+  autoOpenCreate?: boolean;
+}
 
+export const TransfersScreen: React.FC<TransfersScreenProps> = ({
+  searchQuery = '',
+  filterWarehouse = 'All',
+  autoOpenCreate = false,
+}) => {
   const [transfers, setTransfers] = useState<Document[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
-  const [statusFilter, setStatusFilter] = useState<string>('ALL');
-  const [refreshing, setRefreshing] = useState(false);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [statusFilter, setStatusFilter] = useState<string>('All');
 
-  // New Transfer Modal State
-  const [modalVisible, setModalVisible] = useState(false);
+  const [activeTransfer, setActiveTransfer] = useState<Document | null>(null);
+  const [isCreateOpen, setIsCreateOpen] = useState(autoOpenCreate);
+
+  // Form states
   const [sourceLocId, setSourceLocId] = useState('');
   const [destLocId, setDestLocId] = useState('');
-  const [selectedProductId, setSelectedProductId] = useState('');
-  const [quantity, setQuantity] = useState('');
-  const [notes, setNotes] = useState('');
-  const [availableStock, setAvailableStock] = useState<number | null>(null);
+  const [productId, setProductId] = useState('');
+  const [quantity, setQuantity] = useState('92');
 
-  const loadData = useCallback(async () => {
-    const filter = statusFilter === 'ALL' ? undefined : (statusFilter as DocumentStatus);
-    const docs = await MobileStorage.getDocuments('TRANSFER', filter, selectedLocationId);
-    setTransfers(docs);
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
-    const prods = await MobileStorage.getProducts();
-    setProducts(prods);
-    if (prods.length > 0 && !selectedProductId) {
-      setSelectedProductId(prods[0].id);
+  const loadData = async () => {
+    try {
+      const locs = await MobileStorage.getLocations();
+      setLocations(locs);
+      if (locs.length >= 2) {
+        if (!sourceLocId) setSourceLocId(locs[0].id);
+        if (!destLocId) setDestLocId(locs[1].id);
+      }
+
+      const prods = await MobileStorage.getProducts();
+      setProducts(prods);
+      if (prods.length > 0 && !productId) {
+        setProductId(prods[0].id);
+      }
+
+      let locIdFilter: string | undefined = undefined;
+      if (filterWarehouse !== 'All') {
+        const match = locs.find((l) => l.name === filterWarehouse);
+        if (match) locIdFilter = match.id;
+      }
+
+      const docs = await MobileStorage.getDocuments('TRANSFER', undefined, locIdFilter);
+      setTransfers(docs);
+    } catch (e) {
+      console.error('Error loading transfers', e);
     }
-
-    const locs = await MobileStorage.getLocations();
-    setLocations(locs);
-    if (locs.length > 1) {
-      if (!sourceLocId) setSourceLocId(locs[0].id);
-      if (!destLocId) setDestLocId(locs[1].id);
-    }
-  }, [statusFilter, selectedLocationId, selectedProductId, sourceLocId, destLocId]);
+  };
 
   useEffect(() => {
     loadData();
-  }, [loadData]);
+  }, [filterWarehouse]);
 
-  // Check source stock whenever product or source changes
   useEffect(() => {
-    if (selectedProductId && sourceLocId) {
-      MobileStorage.getStockAtLocation(selectedProductId, sourceLocId).then(setAvailableStock);
+    if (autoOpenCreate) {
+      setIsCreateOpen(true);
     }
-  }, [selectedProductId, sourceLocId]);
-
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await loadData();
-    setRefreshing(false);
-  };
-
-  const handleValidate = async (id: string, code: string) => {
-    Alert.alert(
-      'Execute Internal Transfer',
-      `Move items for ${code}? Source location stock will decrease and destination location stock will increase simultaneously, keeping global total constant.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Confirm & Transfer',
-          onPress: async () => {
-            const res = await MobileStorage.validateDocument(id);
-            if (res.success) {
-              Alert.alert('Transfer Executed', res.message);
-              await loadData();
-            } else {
-              Alert.alert('Transfer Error', res.message);
-            }
-          },
-        },
-      ]
-    );
-  };
+  }, [autoOpenCreate]);
 
   const handleCreateTransfer = async () => {
+    if (!sourceLocId || !destLocId || !productId || !Number(quantity)) {
+      setToastMsg('Please fill all transfer fields.');
+      return;
+    }
     if (sourceLocId === destLocId) {
-      Alert.alert('Invalid Route', 'Source and destination locations must be different.');
+      setToastMsg('Source and destination locations must be different.');
       return;
     }
 
-    const qty = parseFloat(quantity);
-    if (!qty || qty <= 0) {
-      Alert.alert('Validation Error', 'Please enter a valid transfer quantity (> 0).');
+    const prod = products.find((p) => p.id === productId);
+    const sLoc = locations.find((l) => l.id === sourceLocId);
+    const dLoc = locations.find((l) => l.id === destLocId);
+    if (!prod || !sLoc || !dLoc) return;
+
+    // Check available stock at source
+    const avail = await MobileStorage.getStockAtLocation(prod.id, sLoc.id);
+    if (avail < Number(quantity)) {
+      setToastMsg(`Insufficient stock at ${sLoc.name}. Available: ${avail} ${prod.unit_of_measure}.`);
       return;
     }
 
-    if (availableStock !== null && qty > availableStock) {
-      Alert.alert(
-        'Insufficient Source Stock',
-        `Source location only has ${availableStock} units on hand. Cannot transfer ${qty} units.`
-      );
-      return;
+    const count = transfers.length + 1;
+    const code = `WH/INT/${String(count).padStart(5, '0')}`;
+
+    setIsLoading(true);
+    try {
+      const newDoc = await MobileStorage.createDocument({
+        code,
+        type: 'TRANSFER',
+        status: 'READY',
+        source_location_id: sLoc.id,
+        source_location_name: sLoc.name,
+        destination_location_id: dLoc.id,
+        destination_location_name: dLoc.name,
+        lines: [
+          {
+            id: `line-${Date.now()}`,
+            product_id: prod.id,
+            product_name: prod.name,
+            sku: prod.sku,
+            requested_quantity: Number(quantity),
+            processed_quantity: Number(quantity),
+            unit_of_measure: prod.unit_of_measure,
+          },
+        ],
+        notes: `Internal transfer from ${sLoc.name} to ${dLoc.name}`,
+      });
+
+      setIsCreateOpen(false);
+      setToastMsg(`Created transfer ${code}`);
+      await loadData();
+      setActiveTransfer(newDoc);
+    } catch (err: any) {
+      setToastMsg(err.message || 'Error creating transfer');
+    } finally {
+      setIsLoading(false);
     }
-
-    const prod = products.find((p) => p.id === selectedProductId);
-    const src = locations.find((l) => l.id === sourceLocId);
-    const dst = locations.find((l) => l.id === destLocId);
-
-    if (!prod || !src || !dst) {
-      Alert.alert('Validation Error', 'Product, source, and destination are required.');
-      return;
-    }
-
-    const newCode = `TRF-${new Date().getFullYear()}-${String(
-      Math.floor(Math.random() * 900) + 100
-    )}`;
-
-    await MobileStorage.createDocument({
-      code: newCode,
-      type: 'TRANSFER',
-      status: 'READY',
-      created_by: user?.id || 'usr-default',
-      creator_name: user?.name || 'Staff Operative',
-      source_location_id: src.id,
-      source_location_name: src.name,
-      destination_location_id: dst.id,
-      destination_location_name: dst.name,
-      notes: notes.trim() || undefined,
-      lines: [
-        {
-          id: `line-${Date.now()}`,
-          product_id: prod.id,
-          product_name: prod.name,
-          sku: prod.sku,
-          requested_quantity: qty,
-          processed_quantity: qty,
-          unit_of_measure: prod.unit_of_measure,
-        },
-      ],
-    });
-
-    setModalVisible(false);
-    setQuantity('');
-    setNotes('');
-    await loadData();
-    Alert.alert('Transfer Scheduled', `Transfer ${newCode} created in READY state.`);
   };
 
-  const statuses = ['ALL', 'DRAFT', 'WAITING', 'READY', 'DONE', 'CANCELED'];
+  const handleValidateTransfer = async (id: string) => {
+    setIsLoading(true);
+    try {
+      const res = await MobileStorage.validateDocument(id);
+      if (res.success) {
+        setToastMsg(res.message);
+        setActiveTransfer(null);
+        await loadData();
+      } else {
+        setToastMsg(res.message);
+      }
+    } catch (err: any) {
+      setToastMsg(err.message || 'Error validating transfer');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const filteredTransfers = transfers.filter((doc) => {
+    if (statusFilter !== 'All' && doc.status !== statusFilter.toUpperCase()) {
+      return false;
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      const matchCode = doc.code.toLowerCase().includes(q);
+      const matchLines = doc.lines.some(
+        (l) => l.product_name.toLowerCase().includes(q) || l.sku.toLowerCase().includes(q)
+      );
+      if (!matchCode && !matchLines) return false;
+    }
+    return true;
+  });
 
   return (
-    <SafeAreaView style={styles.container}>
-      <LocationHeader />
-
-      {/* Header & Status Chips */}
-      <View style={styles.actionHeader}>
-        <View>
-          <Text style={styles.screenTitle}>Internal Transfers</Text>
-          <Text style={styles.screenSub}>Move stock between warehouses, racks, & production</Text>
-        </View>
-
-        <TouchableOpacity
-          style={styles.createBtn}
-          onPress={() => setModalVisible(true)}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="swap-horizontal" size={16} color="#ffffff" style={{ marginRight: 4 }} />
-          <Text style={styles.createBtnText}>New Transfer</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.statusChipsWrapper}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.statusChips}>
-          {statuses.map((st) => (
-            <TouchableOpacity
-              key={st}
-              style={[styles.statusChip, statusFilter === st && styles.statusChipActive]}
-              onPress={() => setStatusFilter(st)}
-            >
-              <Text
-                style={[
-                  styles.statusChipText,
-                  statusFilter === st && styles.statusChipTextActive,
-                ]}
+    <div className="list">
+      <div className="list-head">
+        <h1>
+          Internal transfers<span>{transfers.length}</span>
+        </h1>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <div className="tabs">
+            {['All', 'Ready', 'Waiting', 'Draft', 'Done'].map((st) => (
+              <span
+                key={st}
+                className={`tab ${statusFilter === st ? 'on' : ''}`}
+                onClick={() => setStatusFilter(st)}
               >
                 {st}
-              </Text>
-            </TouchableOpacity>
+              </span>
+            ))}
+          </div>
+          <Button variant="primary" onClick={() => setIsCreateOpen(true)}>
+            + New transfer
+          </Button>
+        </div>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Reference</th>
+            <th>Route</th>
+            <th>Products</th>
+            <th>Scheduled</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {filteredTransfers.map((doc) => (
+            <tr
+              key={doc.id}
+              style={{ cursor: 'pointer' }}
+              onClick={() => setActiveTransfer(doc)}
+            >
+              <td className="ref">
+                <span className="rt">
+                  <i style={{ background: 'var(--sky-300)' }}></i>
+                  <span>
+                    {doc.code}
+                    <small>Internal transfer</small>
+                  </span>
+                </span>
+              </td>
+              <td>
+                <span className="route">
+                  {doc.source_location_name} → {doc.destination_location_name}
+                </span>
+              </td>
+              <td>
+                {doc.lines.map((l) => (
+                  <span key={l.id} style={{ marginRight: 8 }}>
+                    {l.product_name} <b className="mono">{l.requested_quantity} {l.unit_of_measure}</b>
+                  </span>
+                ))}
+              </td>
+              <td className="when">
+                {new Date(doc.created_at).toLocaleDateString('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                })}
+              </td>
+              <td>
+                <Badge status={doc.status} />
+              </td>
+            </tr>
           ))}
-        </ScrollView>
-      </View>
 
-      {/* Transfers List */}
-      <FlatList
-        data={transfers}
-        keyExtractor={(item) => item.id}
-        refreshing={refreshing}
-        onRefresh={onRefresh}
-        contentContainerStyle={styles.listContent}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Ionicons name="swap-horizontal-outline" size={48} color="#cbd5e1" />
-            <Text style={styles.emptyTitle}>No transfers found</Text>
-            <Text style={styles.emptySub}>Tap &quot;New Transfer&quot; to relocate stock between bins</Text>
-          </View>
-        }
-        renderItem={({ item }) => (
-          <View style={styles.docCard}>
-            <View style={styles.docHeader}>
-              <View>
-                <Text style={styles.docCode}>{item.code}</Text>
-                <Text style={styles.docDate}>
-                  {new Date(item.created_at).toLocaleDateString()} by {item.creator_name}
-                </Text>
-              </View>
-              <StatusBadge status={item.status} />
-            </View>
+          {filteredTransfers.length === 0 && (
+            <tr>
+              <td colSpan={5} style={{ textAlign: 'center', padding: '36px 0', color: 'var(--muted)' }}>
+                No internal transfers found.
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
 
-            {/* Source to Destination Route */}
-            <View style={styles.routeBox}>
-              <View style={styles.routePoint}>
-                <Ionicons name="exit-outline" size={14} color="#64748b" />
-                <Text style={styles.routeText} numberOfLines={1}>
-                  From: <Text style={styles.bold}>{item.source_location_name}</Text>
-                </Text>
-              </View>
-              <Ionicons name="arrow-forward" size={14} color="#8b5cf6" style={{ marginHorizontal: 8 }} />
-              <View style={styles.routePoint}>
-                <Ionicons name="enter-outline" size={14} color="#7c3aed" />
-                <Text style={[styles.routeText, { color: '#6d28d9' }]} numberOfLines={1}>
-                  To: <Text style={styles.bold}>{item.destination_location_name}</Text>
-                </Text>
-              </View>
-            </View>
+      {/* View / Validate Transfer Modal */}
+      {activeTransfer && (
+        <Modal
+          isOpen={!!activeTransfer}
+          onClose={() => setActiveTransfer(null)}
+          title={activeTransfer.code}
+          subtitle={`Internal transfer from ${activeTransfer.source_location_name} to ${activeTransfer.destination_location_name}`}
+          footer={
+            <>
+              <Button variant="secondary" onClick={() => setActiveTransfer(null)}>
+                Close
+              </Button>
+              {activeTransfer.status !== 'DONE' && activeTransfer.status !== 'CANCELED' && (
+                <Button
+                  variant="primary"
+                  disabled={isLoading}
+                  onClick={() => handleValidateTransfer(activeTransfer.id)}
+                >
+                  {isLoading ? 'Validating...' : 'Validate transfer'}
+                </Button>
+              )}
+            </>
+          }
+        >
+          <div className="lines">
+            {activeTransfer.lines.map((l) => (
+              <div key={l.id} className="line">
+                <span>
+                  {l.product_name}
+                  <span className="sku">{l.sku}</span>
+                </span>
+                <span className="mono" style={{ color: 'var(--ink-2)' }}>
+                  {l.requested_quantity} {l.unit_of_measure}
+                </span>
+              </div>
+            ))}
+          </div>
 
-            {/* Line items */}
-            <View style={styles.lineItemsBox}>
-              {item.lines.map((l, idx) => (
-                <View key={idx} style={styles.lineRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.lineProd}>{l.product_name}</Text>
-                    <Text style={styles.lineSku}>{l.sku}</Text>
-                  </View>
-                  <Text style={styles.lineQty}>
-                    {l.requested_quantity} {l.unit_of_measure}
-                  </Text>
-                </View>
-              ))}
-            </View>
-
-            {item.notes ? (
-              <Text style={styles.notesText}>Note: {item.notes}</Text>
-            ) : null}
-
-            {/* Validate Action Button */}
-            {item.status !== 'DONE' && item.status !== 'CANCELED' && (
-              <TouchableOpacity
-                style={styles.validateBtn}
-                onPress={() => handleValidate(item.id, item.code)}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="checkmark-done" size={16} color="#ffffff" style={{ marginRight: 6 }} />
-                <Text style={styles.validateBtnText}>Validate & Complete Transfer</Text>
-              </TouchableOpacity>
-            )}
-
-            {item.status === 'DONE' && (
-              <View style={styles.completedBanner}>
-                <Ionicons name="checkmark-circle" size={14} color="#7c3aed" />
-                <Text style={styles.completedText}>Inventory Shift Complete (Total Stock Invariant)</Text>
-              </View>
-            )}
-          </View>
-        )}
-      />
+          <div className="effect" style={{ marginTop: 14 }}>
+            Total stock stays the same. Only the location changes, and the move is logged.
+          </div>
+        </Modal>
+      )}
 
       {/* New Transfer Modal */}
-      <Modal visible={modalVisible} animationType="slide" transparent>
-        <SafeAreaView style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Internal Stock Transfer</Text>
-              <TouchableOpacity onPress={() => setModalVisible(false)}>
-                <Ionicons name="close" size={24} color="#64748b" />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView contentContainerStyle={styles.formScroll}>
-              <Text style={styles.inputLabel}>Source Origin Location (Transfer From) *</Text>
-              <View style={styles.pickerWrap}>
-                {locations.map((loc) => (
-                  <TouchableOpacity
-                    key={loc.id}
-                    style={[
-                      styles.pickerOption,
-                      sourceLocId === loc.id && styles.pickerOptionActive,
-                    ]}
-                    onPress={() => setSourceLocId(loc.id)}
+      {isCreateOpen && (
+        <Modal
+          isOpen={isCreateOpen}
+          onClose={() => setIsCreateOpen(false)}
+          title="New internal transfer"
+          subtitle="Relocate stock between warehouses or racks"
+          footer={
+            <>
+              <Button variant="secondary" onClick={() => setIsCreateOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                disabled={isLoading}
+                onClick={handleCreateTransfer}
+              >
+                Create transfer
+              </Button>
+            </>
+          }
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div className="arrow-mid">
+              <div className="field">
+                <label>From</label>
+                <div className="input">
+                  <select
+                    value={sourceLocId}
+                    onChange={(e) => setSourceLocId(e.target.value)}
                   >
-                    <Text
-                      style={[
-                        styles.pickerOptionText,
-                        sourceLocId === loc.id && styles.pickerOptionTextActive,
-                      ]}
-                    >
-                      {loc.name} ({loc.code})
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              <Text style={styles.inputLabel}>Destination Location (Transfer To) *</Text>
-              <View style={styles.pickerWrap}>
-                {locations.map((loc) => (
-                  <TouchableOpacity
-                    key={loc.id}
-                    style={[
-                      styles.pickerOption,
-                      destLocId === loc.id && styles.pickerOptionActive,
-                      loc.id === sourceLocId && styles.pickerOptionDisabled,
-                    ]}
-                    onPress={() => loc.id !== sourceLocId && setDestLocId(loc.id)}
+                    {locations.map((loc) => (
+                      <option key={loc.id} value={loc.id}>
+                        {loc.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <i>→</i>
+              <div className="field">
+                <label>To</label>
+                <div className="input">
+                  <select
+                    value={destLocId}
+                    onChange={(e) => setDestLocId(e.target.value)}
                   >
-                    <Text
-                      style={[
-                        styles.pickerOptionText,
-                        destLocId === loc.id && styles.pickerOptionTextActive,
-                      ]}
-                    >
-                      {loc.name} {loc.id === sourceLocId ? '(Same as Source)' : ''}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+                    {locations.map((loc) => (
+                      <option key={loc.id} value={loc.id}>
+                        {loc.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
 
-              <Text style={styles.inputLabel}>Product to Transfer *</Text>
-              <View style={styles.pickerWrap}>
-                {products.map((p) => (
-                  <TouchableOpacity
-                    key={p.id}
-                    style={[
-                      styles.pickerOption,
-                      selectedProductId === p.id && styles.pickerOptionActive,
-                    ]}
-                    onPress={() => setSelectedProductId(p.id)}
+            <div className="two">
+              <div className="field">
+                <label>Product</label>
+                <div className="input">
+                  <select
+                    value={productId}
+                    onChange={(e) => setProductId(e.target.value)}
                   >
-                    <Text
-                      style={[
-                        styles.pickerOptionText,
-                        selectedProductId === p.id && styles.pickerOptionTextActive,
-                      ]}
-                      numberOfLines={1}
-                    >
-                      {p.name} ({p.sku})
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              {/* Source Stock Indicator */}
-              <View style={styles.sourceStockBox}>
-                <Ionicons name="information-circle" size={16} color="#7c3aed" />
-                <Text style={styles.sourceStockText}>
-                  Available at Source:{' '}
-                  <Text style={{ fontWeight: '800', color: '#0f172a' }}>
-                    {availableStock !== null ? `${availableStock}` : 'Checking...'}
-                  </Text>
-                </Text>
-              </View>
-
-              <Text style={styles.inputLabel}>Quantity to Transfer *</Text>
-              <TextInput
-                style={styles.formInput}
-                placeholder="e.g. 50"
-                keyboardType="numeric"
+                    {products.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} ({p.sku})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <Input
+                label="Quantity"
+                type="number"
                 value={quantity}
-                onChangeText={setQuantity}
+                onChange={(e) => setQuantity(e.target.value)}
+                suffix={products.find((p) => p.id === productId)?.unit_of_measure || 'kg'}
               />
+            </div>
 
-              <Text style={styles.inputLabel}>Transfer Reason / Notes</Text>
-              <TextInput
-                style={styles.formInput}
-                placeholder="Transfer for assembly batch or shelf replenishment"
-                value={notes}
-                onChangeText={setNotes}
-              />
+            <div className="effect">
+              Total stock stays the same. Only the location changes, and the move is logged.
+            </div>
+          </div>
+        </Modal>
+      )}
 
-              <TouchableOpacity style={styles.submitBtn} onPress={handleCreateTransfer}>
-                <Text style={styles.submitBtnText}>Create Transfer Document</Text>
-              </TouchableOpacity>
-            </ScrollView>
-          </View>
-        </SafeAreaView>
-      </Modal>
-    </SafeAreaView>
+      <Toast message={toastMsg} onDismiss={() => setToastMsg(null)} />
+    </div>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f8fafc',
-  },
-  actionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 8,
-  },
-  screenTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#0f172a',
-  },
-  screenSub: {
-    fontSize: 11,
-    color: '#64748b',
-    marginTop: 2,
-  },
-  createBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#8b5cf6',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
-  },
-  createBtnText: {
-    color: '#ffffff',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  statusChipsWrapper: {
-    paddingVertical: 6,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
-  },
-  statusChips: {
-    paddingHorizontal: 16,
-  },
-  statusChip: {
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 14,
-    marginRight: 6,
-  },
-  statusChipActive: {
-    backgroundColor: '#8b5cf6',
-    borderColor: '#8b5cf6',
-  },
-  statusChipText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#64748b',
-  },
-  statusChipTextActive: {
-    color: '#ffffff',
-  },
-  listContent: {
-    padding: 16,
-    paddingBottom: 32,
-  },
-  docCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 3,
-    elevation: 1,
-  },
-  docHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  docCode: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#0f172a',
-  },
-  docDate: {
-    fontSize: 11,
-    color: '#94a3b8',
-    marginTop: 2,
-  },
-  routeBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f5f3ff',
-    padding: 10,
-    borderRadius: 10,
-    marginVertical: 10,
-  },
-  routePoint: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  routeText: {
-    fontSize: 11,
-    color: '#475569',
-    marginLeft: 6,
-  },
-  bold: {
-    fontWeight: '700',
-    color: '#1e293b',
-  },
-  lineItemsBox: {
-    borderTopWidth: 1,
-    borderTopColor: '#f8fafc',
-    paddingTop: 8,
-  },
-  lineRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 4,
-  },
-  lineProd: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#1e293b',
-  },
-  lineSku: {
-    fontSize: 10,
-    color: '#64748b',
-  },
-  lineQty: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#7c3aed',
-  },
-  notesText: {
-    fontSize: 11,
-    color: '#64748b',
-    fontStyle: 'italic',
-    marginTop: 6,
-  },
-  validateBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#7c3aed',
-    borderRadius: 10,
-    paddingVertical: 10,
-    marginTop: 12,
-  },
-  validateBtnText: {
-    color: '#ffffff',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  completedBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#f5f3ff',
-    borderRadius: 8,
-    paddingVertical: 6,
-    marginTop: 10,
-  },
-  completedText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#6d28d9',
-    marginLeft: 4,
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 60,
-  },
-  emptyTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#334155',
-    marginTop: 12,
-  },
-  emptySub: {
-    fontSize: 12,
-    color: '#94a3b8',
-    marginTop: 4,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: '#ffffff',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 20,
-    maxHeight: '90%',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#0f172a',
-  },
-  formScroll: {
-    paddingBottom: 32,
-  },
-  inputLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#334155',
-    marginBottom: 6,
-    marginTop: 12,
-  },
-  formInput: {
-    backgroundColor: '#f8fafc',
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    fontSize: 13,
-    color: '#0f172a',
-  },
-  pickerWrap: {
-    marginTop: 4,
-  },
-  pickerOption: {
-    backgroundColor: '#f1f5f9',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
-    marginBottom: 6,
-  },
-  pickerOptionActive: {
-    backgroundColor: '#8b5cf6',
-  },
-  pickerOptionDisabled: {
-    opacity: 0.35,
-  },
-  pickerOptionText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#475569',
-  },
-  pickerOptionTextActive: {
-    color: '#ffffff',
-  },
-  sourceStockBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f5f3ff',
-    padding: 10,
-    borderRadius: 8,
-    marginTop: 8,
-  },
-  sourceStockText: {
-    fontSize: 12,
-    color: '#6d28d9',
-    marginLeft: 6,
-  },
-  submitBtn: {
-    backgroundColor: '#8b5cf6',
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: 'center',
-    marginTop: 24,
-  },
-  submitBtnText: {
-    color: '#ffffff',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-});
