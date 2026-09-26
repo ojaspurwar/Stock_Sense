@@ -1,0 +1,13 @@
+# Python venv & caches
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local Environment Variables
+.env
