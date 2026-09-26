@@ -11,3 +11,5 @@ htmlcov/
 
 # Local Environment Variables
 .env
+*.db
+*.sqlite3

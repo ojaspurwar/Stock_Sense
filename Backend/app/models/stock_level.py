@@ -16,6 +16,11 @@ class StockLevel(Base):
         Uuid(as_uuid=True), ForeignKey("locations.id", ondelete="CASCADE"), primary_key=True
     )
     current_quantity: Mapped[Decimal] = mapped_column(Numeric(14, 4), default=Decimal("0.0000"), nullable=False)
+    reserved_quantity: Mapped[Decimal] = mapped_column(Numeric(14, 4), default=Decimal("0.0000"), nullable=False)
+
+    @property
+    def available_quantity(self) -> Decimal:
+        return self.current_quantity - self.reserved_quantity
 
     product = relationship("Product", back_populates="stock_levels")
     location = relationship("Location", back_populates="stock_levels")

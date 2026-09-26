@@ -6,6 +6,7 @@ from app.models.document import Document, DocumentStatus, DocumentType
 from app.models.product import Product
 from app.models.stock_level import StockLevel
 from app.schemas.dashboard import DashboardKPIs, LowStockAlert
+from app.services.ledger_engine import LedgerEngine
 
 
 class DashboardService:
@@ -96,6 +97,20 @@ class DashboardService:
                     )
                 )
 
+        # FIFO valuation & on-hand inventory quantity
+        valuation_data = await LedgerEngine.get_fifo_inventory_valuation(db)
+        total_inventory_val = Decimal(str(valuation_data["total_inventory_valuation"]))
+        total_inventory_qty = Decimal(str(valuation_data["total_inventory_quantity"]))
+
+        # Real-time COGS across all fulfilled deliveries
+        cogs_res = await db.execute(
+            select(func.coalesce(func.sum(Document.cogs), Decimal("0.0000"))).where(
+                Document.type == DocumentType.DELIVERY,
+                Document.status == DocumentStatus.DONE,
+            )
+        )
+        total_cogs = cogs_res.scalar() or Decimal("0.00")
+
         return DashboardKPIs(
             total_products=total_products,
             low_stock_count=low_stock_count,
@@ -103,5 +118,8 @@ class DashboardService:
             pending_receipts_count=pending_receipts,
             pending_deliveries_count=pending_deliveries,
             scheduled_transfers_count=scheduled_transfers,
+            total_inventory_quantity=total_inventory_qty,
+            total_inventory_value=total_inventory_val,
+            total_cogs=total_cogs,
             low_stock_items=low_stock_alerts,
         )

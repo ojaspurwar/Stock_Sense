@@ -1,3 +1,4 @@
+from typing import Annotated
 import uuid
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
@@ -11,15 +12,16 @@ from app.models.stock_ledger import StockLedger
 from app.models.stock_level import StockLevel
 from app.models.user import User
 from app.schemas.ledger import StockLedgerResponse, StockLevelResponse
+from app.services.ledger_engine import LedgerEngine
 
 router = APIRouter()
 
 
 @router.get("", response_model=list[StockLedgerResponse])
 async def list_ledger_entries(
-    product_id: uuid.UUID | None = Query(None),
-    document_id: uuid.UUID | None = Query(None),
-    location_id: uuid.UUID | None = Query(None),
+    product_id: Annotated[uuid.UUID | None, Query()] = None,
+    document_id: Annotated[uuid.UUID | None, Query()] = None,
+    location_id: Annotated[uuid.UUID | None, Query()] = None,
     skip: int = 0,
     limit: int = 100,
     db: AsyncSession = Depends(get_db),
@@ -88,3 +90,53 @@ async def list_stock_levels(
 
     res = await db.execute(stmt)
     return list(res.scalars().all())
+
+
+@router.get("/verify")
+async def verify_ledger_cryptographic_integrity(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Scans the entire cryptographic SHA-256 chain of the Stock Ledger to prove
+    that no database administrator, staff, or attacker tampered with stock numbers.
+    """
+    return await LedgerEngine.verify_chain(db)
+
+
+@router.get("/valuation")
+async def get_inventory_valuation(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Returns real-time inventory asset valuation and FIFO cost layer breakdown.
+    """
+    return await LedgerEngine.get_fifo_inventory_valuation(db)
+
+
+@router.get("/lots")
+async def list_product_lots(
+    product_id: uuid.UUID | None = Query(None),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Returns incoming batches/lots with purchase cost, remaining quantity, and batch values.
+    """
+    lots = await LedgerEngine.get_lots(db, product_id=product_id)
+    return [
+        {
+            "id": str(lot.id),
+            "lot_number": lot.lot_number,
+            "product_id": str(lot.product_id),
+            "product_name": lot.product.name if lot.product else None,
+            "initial_quantity": float(lot.initial_quantity),
+            "remaining_quantity": float(lot.remaining_quantity),
+            "unit_cost": float(lot.unit_cost),
+            "lot_value": float(lot.remaining_quantity * lot.unit_cost),
+            "created_at": lot.created_at.isoformat(),
+        }
+        for lot in lots
+    ]
+

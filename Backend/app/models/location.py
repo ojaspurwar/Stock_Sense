@@ -8,9 +8,14 @@ from app.core.database import Base
 
 
 class LocationType(str, enum.Enum):
+    # Physical Locations
     WAREHOUSE = "WAREHOUSE"
     RACK = "RACK"
     PRODUCTION = "PRODUCTION"
+    # Virtual Locations (Double-entry counterparts)
+    VENDOR = "VENDOR"
+    CUSTOMER = "CUSTOMER"
+    INVENTORY_LOSS = "INVENTORY_LOSS"
 
 
 class Location(Base):

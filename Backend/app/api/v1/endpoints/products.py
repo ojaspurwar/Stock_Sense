@@ -7,11 +7,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_manager
 from app.models.document import DocumentType
+from app.models.location import Location
 from app.models.product import Product
 from app.models.stock_level import StockLevel
 from app.models.user import User
 from app.schemas.document import DocumentCreate, DocumentItemCreate
-from app.schemas.product import ProductCreate, ProductResponse, ProductUpdate
+from app.schemas.product import (
+    LocationStock,
+    ProductAvailabilityResponse,
+    ProductCreate,
+    ProductResponse,
+    ProductUpdate,
+)
 from app.services.document_service import DocumentService
 
 router = APIRouter()
@@ -154,3 +161,56 @@ async def update_product(
     await db.commit()
     await db.refresh(product)
     return await get_product(product_id=product.id, db=db, current_user=current_user)
+
+
+@router.get("/{product_id}/availability", response_model=ProductAvailabilityResponse)
+async def get_product_availability(
+    product_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    # Verify product exists
+    prod_res = await db.execute(select(Product).where(Product.id == product_id))
+    product = prod_res.scalar_one_or_none()
+    if not product:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Product {product_id} not found",
+        )
+
+    # Query all location stock levels
+    stmt = (
+        select(Location, StockLevel.current_quantity, StockLevel.reserved_quantity)
+        .join(StockLevel, Location.id == StockLevel.location_id)
+        .where(StockLevel.product_id == product_id)
+        .order_by(Location.name.asc())
+    )
+    res = await db.execute(stmt)
+    rows = res.all()
+
+    locations_data: list[LocationStock] = []
+    total = Decimal("0.00")
+    for loc, cur_qty, res_qty in rows:
+        physical = Decimal(str(cur_qty))
+        reserved = Decimal(str(res_qty))
+        available = physical - reserved
+        total += physical
+        locations_data.append(
+            LocationStock(
+                location_id=loc.id,
+                location_name=loc.name,
+                location_type=loc.type.value if hasattr(loc.type, "value") else str(loc.type),
+                physical_stock=physical,
+                reserved_stock=reserved,
+                available_stock=available,
+                quantity=physical,
+            )
+        )
+
+    return ProductAvailabilityResponse(
+        product_id=product.id,
+        product_name=product.name,
+        sku=product.sku,
+        total_stock=total,
+        locations=locations_data,
+    )

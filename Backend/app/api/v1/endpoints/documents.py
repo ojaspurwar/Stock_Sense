@@ -1,9 +1,11 @@
+from typing import Annotated
 import uuid
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Header, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.deps import get_current_user
+from app.core.idempotency import check_idempotency, save_idempotency
 from app.models.document import DocumentStatus, DocumentType
 from app.models.user import User
 from app.schemas.document import (
@@ -39,10 +41,19 @@ async def list_documents(
 @router.post("", response_model=DocumentResponse, status_code=status.HTTP_201_CREATED)
 async def create_document(
     doc_in: DocumentCreate,
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return await DocumentService.create_document(db, doc_in, user=current_user)
+    # Check if request was already processed under this idempotency key
+    cached = await check_idempotency(db, str(current_user.id), idempotency_key)
+    if cached:
+        return cached["data"]
+
+    doc = await DocumentService.create_document(db, doc_in, user=current_user)
+    doc_dict = DocumentResponse.model_validate(doc).model_dump(mode="json")
+    await save_idempotency(db, str(current_user.id), idempotency_key, 201, doc_dict)
+    return doc
 
 
 @router.get("/{document_id}", response_model=DocumentResponse)
@@ -67,7 +78,16 @@ async def update_document_status(
 @router.post("/{document_id}/validate", response_model=DocumentResponse)
 async def validate_document(
     document_id: uuid.UUID,
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return await DocumentService.validate_document(db, document_id)
+    # Prevent duplicate dispatch if worker double-taps during network lag
+    cached = await check_idempotency(db, str(current_user.id), idempotency_key)
+    if cached:
+        return cached["data"]
+
+    doc = await DocumentService.validate_document(db, document_id)
+    doc_dict = DocumentResponse.model_validate(doc).model_dump(mode="json")
+    await save_idempotency(db, str(current_user.id), idempotency_key, 200, doc_dict)
+    return doc

@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from decimal import Decimal
 import random
 import string
 import uuid
@@ -55,6 +56,7 @@ class DocumentService:
                 document_id=document.id,
                 product_id=item_in.product_id,
                 quantity=item_in.quantity,
+                unit_price=item_in.unit_price,
             )
             db.add(item)
 
@@ -135,15 +137,51 @@ class DocumentService:
             # Delegate to validation & ledger processing
             return await DocumentService.validate_document(db, document_id)
 
+        # 1. Entering WAITING or READY: Reserve available stock
+        if (
+            document.status == DocumentStatus.DRAFT
+            and new_status in (DocumentStatus.WAITING, DocumentStatus.READY)
+            and document.type in (DocumentType.DELIVERY, DocumentType.TRANSFER)
+            and document.source_location_id
+        ):
+            for item in document.items:
+                level = await LedgerEngine.get_or_create_stock_level(
+                    db, item.product_id, document.source_location_id, for_update=True
+                )
+                available = level.current_quantity - level.reserved_quantity
+                if available < item.quantity:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=(
+                            f"Cannot reserve stock for product {item.product_id}. "
+                            f"Physical: {level.current_quantity}, Reserved: {level.reserved_quantity}, "
+                            f"Available: {available}, Requested: {item.quantity}."
+                        ),
+                    )
+                level.reserved_quantity += item.quantity
+
+        # 2. Canceling a document that held reservations: Release reserved stock
+        elif (
+            document.status in (DocumentStatus.WAITING, DocumentStatus.READY)
+            and new_status == DocumentStatus.CANCELED
+            and document.type in (DocumentType.DELIVERY, DocumentType.TRANSFER)
+            and document.source_location_id
+        ):
+            for item in document.items:
+                level = await LedgerEngine.get_or_create_stock_level(
+                    db, item.product_id, document.source_location_id, for_update=True
+                )
+                level.reserved_quantity = max(Decimal("0.0000"), level.reserved_quantity - item.quantity)
+
         document.status = new_status
         await db.commit()
-        await db.refresh(document)
-        return document
+        return await DocumentService.get_document_by_id(db, document_id)
 
     @staticmethod
     async def validate_document(db: AsyncSession, document_id: uuid.UUID) -> Document:
         """
         Validates document and commits changes to double-entry ledger atomically.
+        Fulfills any pending stock reservations.
         """
         document = await DocumentService.get_document_by_id(db, document_id)
 
@@ -157,6 +195,24 @@ class DocumentService:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Cannot validate a canceled document.",
             )
+
+        # Release reservation since physical stock is now officially departing
+        if (
+            document.status in (DocumentStatus.WAITING, DocumentStatus.READY)
+            and document.type in (DocumentType.DELIVERY, DocumentType.TRANSFER)
+            and document.source_location_id
+        ):
+            for item in document.items:
+                level = await LedgerEngine.get_or_create_stock_level(
+                    db, item.product_id, document.source_location_id, for_update=True
+                )
+                level.reserved_quantity = max(Decimal("0.0000"), level.reserved_quantity - item.quantity)
+
+        # FIFO Lot tracking and COGS calculation
+        if document.type == DocumentType.RECEIPT:
+            await LedgerEngine.record_receipt_lots(db, document)
+        elif document.type == DocumentType.DELIVERY:
+            await LedgerEngine.consume_delivery_lots_fifo(db, document)
 
         # Execute ledger transactions
         await LedgerEngine.process_document_ledger(db, document)

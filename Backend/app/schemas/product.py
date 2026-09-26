@@ -30,3 +30,21 @@ class ProductResponse(ProductBase):
     total_stock: Decimal = Decimal("0.00")
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class LocationStock(BaseModel):
+    location_id: uuid.UUID
+    location_name: str
+    location_type: str
+    physical_stock: Decimal = Decimal("0.00")
+    reserved_stock: Decimal = Decimal("0.00")
+    available_stock: Decimal = Decimal("0.00")
+    quantity: Decimal = Decimal("0.00")  # Equal to physical_stock for backward compatibility
+
+
+class ProductAvailabilityResponse(BaseModel):
+    product_id: uuid.UUID
+    product_name: str
+    sku: str
+    total_stock: Decimal
+    locations: list[LocationStock] = []
