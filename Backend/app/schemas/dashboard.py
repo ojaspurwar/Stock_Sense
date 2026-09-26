@@ -22,6 +22,10 @@ class DashboardKPIs(BaseModel):
     pending_receipts_count: int
     pending_deliveries_count: int
     scheduled_transfers_count: int
+    pending_receipts: int = 0
+    pending_deliveries: int = 0
+    scheduled_transfers: int = 0
+    recent_adjustments: int = 0
     total_inventory_quantity: Decimal = Decimal("0.00")
     total_inventory_value: Decimal = Decimal("0.00")
     total_cogs: Decimal = Decimal("0.00")

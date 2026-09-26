@@ -1,6 +1,6 @@
-# StockSense - Backend Service
+# StockSense - Backend Web Service
 
-This directory contains the **Backend API & Double-Entry Ledger Engine** for StockSense.
+This directory contains the **Backend REST API & Double-Entry Ledger Engine** powering the StockSense inventory management website and web portal.
 
 ## 🛠️ Tech Stack
 - **Framework:** FastAPI (Python 3.11)

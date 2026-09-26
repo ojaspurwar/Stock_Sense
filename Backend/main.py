@@ -9,18 +9,24 @@ from app.core.database import Base, engine
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: create tables if running in development mode
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    # Startup: ensure tables exist if accessible
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+    except Exception as exc:
+        print(f"Database initialization warning in lifespan: {exc}")
     yield
     # Shutdown: dispose connection pool
-    await engine.dispose()
+    try:
+        await engine.dispose()
+    except Exception:
+        pass
 
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version="1.0.0",
-    description="StockSense Modular Inventory Management System (IMS) REST API with Double-Entry Ledger",
+    description="StockSense Web Application REST API with Double-Entry Ledger, FIFO Tracking, and Real-Time Inventory Control",
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
     docs_url="/docs",
     redoc_url="/redoc",
