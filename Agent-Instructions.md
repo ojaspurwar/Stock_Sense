@@ -23,12 +23,30 @@ Key Features: Product Management, Receipts, Delivery Orders, Internal Transfers,
 - [x] Read and understand problem statement
 - [x] Setup initial project structure and `.gitignore`
 - [x] Create core member folders (`Backend`, `Database`, `Frontend`)
-- [x] Draft initial Database Schema Plan
+- [x] Draft Database Schema Plan
+- [x] Initialize Prisma and TypeScript in `Database/`
+- [x] Sync schema to live Neon database
+- [x] Write core Database TypeScript Services (`inventoryService`, `productService`, `documentService`, `kpiService`)
+- [x] Create deployment and app guides for the team
+
+## 🚀 Next Steps (For Teammates)
+
+**For the Backend Team:**
+- [ ] Initialize your Node.js/Next.js API in the `Backend/` folder.
+- [ ] Import the pre-written Prisma services from the `Database/src/` folder to build your API routes.
+- [ ] Deploy the API to Vercel (See `Deployment-Guide.md`).
+
+**For the Frontend Team:**
+- [ ] Initialize the React Native Expo app inside the `Frontend/` folder.
+- [ ] Build the UI screens (Dashboard, Scanner, Product List).
+- [ ] Connect the UI to the live Vercel API.
+- [ ] Build the `.apk` using EAS (See `Deployment-Guide.md` and `Frontend-App-Guide.md`).
 
 ## Database Planning (Occupied Territory)
-- The `Database` folder is actively being worked on.
-- No code/implementation will be written until the plan is finalized.
-- Active Schema Draft: See [`Database/Schema-Plan.md`](./Database/Schema-Plan.md) for the current proposed table structures and ledger logic.
+- The `Database` folder is fully initialized and synced with Neon!
+- The core services are written in `Database/src/`.
+- Active Schema Docs: See [`Database/Schema-Plan.md`](./Database/Schema-Plan.md) for table structures and ledger logic.
+
 
 ## Detailed Problem Statement
 **Goal:** Build a modular Inventory Management System (IMS) named **StockSense** that digitizes stock-related operations, replacing manual tracking (Excel, registers) with a centralized, real-time app.
