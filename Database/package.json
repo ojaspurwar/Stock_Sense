@@ -8,13 +8,11 @@
     "postinstall": "prisma generate"
   },
   "keywords": [],
-  "type": "commonjs",
+  "type": "module",
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1141.0",
     "@aws-sdk/s3-request-presigner": "^3.1141.0",
-    "dotenv": "^18.0.4"
-  },
-  "devDependencies": {
+    "dotenv": "^18.0.4",
     "@prisma/client": "^5.22.0",
     "prisma": "^5.22.0"
   },
