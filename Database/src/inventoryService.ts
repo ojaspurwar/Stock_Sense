@@ -1,5 +1,5 @@
 import { prisma } from './db';
-import { DocumentType, DocumentStatus, Prisma } from '@prisma/client';
+import { DocumentType, DocumentStatus, Prisma, PrismaClient } from '@prisma/client';
 
 /**
  * Validates and processes an inventory document (Receipt, Delivery, Transfer).
