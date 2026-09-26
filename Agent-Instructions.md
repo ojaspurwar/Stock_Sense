@@ -1,17 +1,7 @@
 # StockSense - Agent & AI Collaboration Instructions
 
-## 🛑 AI Agent Boundaries & Territory Locks 🛑
-**CRITICAL INSTRUCTION FOR ALL AI AGENTS READING THIS FILE:**
-This repository is being built in parallel by 3 separate team members, each using their own AI assistant. To prevent code conflicts and overwritten work, strict folder boundaries are enforced. 
-
-- 🔒 **`Database/` : LOCKED FOR EDITING (READ-ONLY FOR OTHERS)** 
-  *Currently being built by the Database Team. Other teams and their AIs **MUST read** this folder (especially `Schema-Plan.md`) to understand the database structure and connect their code, but they **MUST NOT edit, add, or delete** any files in this folder.*
-- 🧑‍💻 **`Frontend/` : ASSIGNED TO TEAMMATE** 
-  *Reserved exclusively for the Frontend Team and their AI.*
-- 🧑‍💻 **`Backend/` : ASSIGNED TO TEAMMATE** 
-  *Reserved exclusively for the Backend Team and their AI.*
-
-**AI Rule of Engagement:** If you are a new AI stepping into this repository, identify which folder your user is responsible for and restrict ALL of your file modifications to that specific folder.
+## 🚀 Full-Stack AI Development Mode
+**Status:** The entire project (Database, Backend, Frontend) is now being developed by Ojas and this AI. All folder boundaries have been removed.
 
 ---
 
@@ -48,34 +38,63 @@ Key Features: Product Management, Receipts, Delivery Orders, Internal Transfers,
 - Active Schema Docs: See [`Database/Schema-Plan.md`](./Database/Schema-Plan.md) for table structures and ledger logic.
 
 
-## Detailed Problem Statement
+## 100% Complete Feature Specification (From PDF)
 **Goal:** Build a modular Inventory Management System (IMS) named **StockSense** that digitizes stock-related operations, replacing manual tracking (Excel, registers) with a centralized, real-time app.
 
-**Target Users**
+### 1. Target Users
 - **Inventory Managers:** Handle incoming and outgoing stock.
 - **Warehouse Staff:** Perform transfers, picking, shelving, and physical counting.
 
-**Authentication & Dashboard**
-- Users authenticate (login/signup) with OTP-based password reset, landing on the Dashboard.
-- **KPIs:** Total Products, Low/Out of Stock, Pending Receipts/Deliveries, and Scheduled Internal Transfers.
-- **Filters:** By Document Type, Status (Draft, Waiting, Ready, Done, Canceled), Warehouse/Location, and Product Category.
+### 2. Authentication
+- User sign up / log in.
+- OTP-based password reset.
+- Redirects directly to the Inventory Dashboard upon login.
 
-**Core Operations**
+### 3. Dashboard View & Analytics
+The landing page shows a complete snapshot of inventory operations.
+- **Dashboard KPIs:**
+  - Total Products in Stock
+  - Low Stock / Out of Stock Items
+  - Pending Receipts
+  - Pending Deliveries
+  - Internal Transfers Scheduled
+- **Dynamic Filters:**
+  - By document type: Receipts / Delivery / Internal / Adjustments
+  - By status: Draft, Waiting, Ready, Done, Canceled
+  - By warehouse or location
+  - By product category
+
+### 4. Navigation Structure
+1. **Products:** Create/update products, stock availability per location, product categories, and **reordering rules**.
+2. **Operations:** Receipts (Incoming), Delivery Orders (Outgoing), Inventory Adjustment.
+3. **Move History**
+4. **Dashboard**
+5. **Setting:** Warehouse configurations.
+6. **Profile Menu (Left Sidebar):** My Profile, Logout.
+
+### 5. Core Features & Operations
 1. **Product Management:** Create products with Name, SKU/Code, Category, Unit of Measure (UoM), and optional initial stock.
-2. **Receipts (Incoming Goods):** When vendor items arrive. Process: Create receipt -> add supplier/products -> input received quantities -> validate (automatically increases stock).
-3. **Delivery Orders (Outgoing Goods):** When stock leaves for shipment. Process: Pick -> Pack -> validate (automatically decreases stock).
-4. **Internal Transfers:** Move stock between company locations (e.g., Main Warehouse to Production Floor, Rack A to Rack B). Logged in the ledger.
-5. **Stock Adjustments:** Fix discrepancies between recorded stock and physical counts. Select product/location, enter actual counted quantity, and the system auto-updates/logs it.
+2. **Receipts (Incoming Goods):** Used when items arrive from vendors.
+   - *Process:* Create new receipt -> Add supplier & products -> Input quantities received -> Validate (stock increases automatically).
+   - *Example:* Receive 50 units of "Steel Rods" -> stock +50.
+3. **Delivery Orders (Outgoing Goods):** Used when stock leaves for customer shipment.
+   - *Process:* Pick items -> Pack items -> Validate (stock decreases automatically).
+   - *Example:* Sales order for 10 chairs -> Delivery order reduces chairs by 10.
+4. **Internal Transfers:** Move stock inside the company.
+   - *Example:* Main Warehouse -> Production Floor; Rack A -> Rack B.
+   - *Note:* Each movement must be strictly logged in the ledger.
+5. **Stock Adjustments:** Fix mismatches between recorded stock and physical count.
+   - *Steps:* Select product/location -> Enter counted quantity -> System auto-updates and logs the adjustment.
 
-**Additional Features**
-- Stock Ledger (tracks all historical movements)
-- Alerts for low stock
-- Multi-warehouse support
-- Smart filters and SKU search
+### 6. Additional System Features
+- Alerts for low stock.
+- Multi-warehouse support.
+- SKU search & smart filters.
+- **Mockup Reference:** [Excalidraw Link](https://link.excalidraw.com/l/65VNwvy7c4X/3ENvQFu9o8R)
 
-**Inventory Flow Example:**
-- *Step 1:* Receive 100 kg Steel from Vendor (Stock +100)
-- *Step 2:* Internal Transfer from Main Store to Production Rack (Location updated, Total Stock unchanged)
-- *Step 3:* Deliver 20 Steel as finished goods (Stock -20)
-- *Step 4:* Adjust 3 kg of damaged Steel (Stock -3)
-- *Result:* All steps rigorously recorded in the Stock Ledger.
+### 7. Simplified Inventory Flow Example
+- *Step 1:* Receive Goods from Vendor (Receive 100 kg Steel -> Stock: +100).
+- *Step 2:* Move to production rack (Internal Transfer: Main Store -> Production Rack. Stock unchanged in total, but new location updated).
+- *Step 3:* Deliver finished goods (Deliver 20 steel -> Stock for frames: -20).
+- *Step 4:* Adjust damaged items (3 kg steel damaged -> Stock: -3).
+- **Result:** Everything logged immutably in the Stock Ledger.
