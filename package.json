@@ -1,0 +1,9 @@
+{
+  "name": "stock-sense",
+  "private": true,
+  "workspaces": [
+    "Backend",
+    "Database",
+    "Frontend"
+  ]
+}
