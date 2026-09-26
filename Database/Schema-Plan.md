@@ -23,7 +23,16 @@ Manages authentication and roles.
 - `role` (Enum: 'MANAGER', 'STAFF')
 - `created_at` (Timestamp)
 
-### 2. `Products`
+### 2. `Contacts`
+Stores information about Suppliers and Customers.
+- `id` (UUID, Primary Key)
+- `name` (String)
+- `type` (Enum: 'SUPPLIER', 'CUSTOMER', 'INTERNAL')
+- `email` (String, nullable)
+- `phone` (String, nullable)
+- `created_at` (Timestamp)
+
+### 3. `Products`
 The catalog of items.
 - `id` (UUID, Primary Key)
 - `name` (String)
@@ -32,37 +41,46 @@ The catalog of items.
 - `unit_of_measure` (String - e.g., kg, pcs, liters)
 - `created_at` (Timestamp)
 
-### 3. `Locations`
+### 4. `Locations`
 Represents physical places where stock can exist (Warehouses, Racks, Production Floors).
 - `id` (UUID, Primary Key)
 - `name` (String)
 - `type` (Enum: 'WAREHOUSE', 'RACK', 'PRODUCTION')
 - `created_at` (Timestamp)
 
-### 4. `Documents` (Operations)
+### 5. `Documents` (Operations)
 Represents the high-level action (Receipt, Delivery, Transfer, Adjustment).
 - `id` (UUID, Primary Key)
 - `type` (Enum: 'RECEIPT', 'DELIVERY', 'TRANSFER', 'ADJUSTMENT')
 - `status` (Enum: 'DRAFT', 'WAITING', 'READY', 'DONE', 'CANCELED')
+- `contact_id` (UUID, nullable, Foreign Key to Contacts)
 - `created_by` (UUID, Foreign Key to Users)
 - `source_location_id` (UUID, nullable, Foreign Key to Locations)
 - `destination_location_id` (UUID, nullable, Foreign Key to Locations)
 - `created_at` (Timestamp)
 
-### 5. `Stock_Ledger` (The Source of Truth)
-The immutable log of every item movement. Ties back to a Document.
+### 6. `Document_Lines`
+The specific items and requested quantities expected in a Document before it is finalized.
 - `id` (UUID, Primary Key)
 - `document_id` (UUID, Foreign Key to Documents)
 - `product_id` (UUID, Foreign Key to Products)
-- `quantity` (Integer/Decimal - the amount moved)
+- `requested_quantity` (Decimal)
+- `processed_quantity` (Decimal - amount actually processed)
+
+### 7. `Stock_Ledger` (The Source of Truth)
+The immutable log of every item movement. Generated when a Document is validated.
+- `id` (UUID, Primary Key)
+- `document_id` (UUID, Foreign Key to Documents)
+- `product_id` (UUID, Foreign Key to Products)
+- `quantity` (Decimal - the amount moved)
 - `timestamp` (Timestamp)
 
-### 6. `Stock_Levels` (Materialized View / Cache)
+### 8. `Stock_Levels` (Materialized View / Cache)
 A fast-read table to get current stock without summing the entire ledger every time.
 - `product_id` (UUID)
 - `location_id` (UUID)
-- `current_quantity` (Integer/Decimal)
+- `current_quantity` (Decimal)
 *(Composite Primary Key: product_id, location_id)*
 
 ---
-**Status:** Awaiting review and adjustments. Do not implement in SQL/ORM yet.
+**Status:** Schema plan finalized. Ready for implementation.

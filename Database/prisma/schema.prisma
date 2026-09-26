@@ -1,0 +1,146 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  MANAGER
+  STAFF
+}
+
+enum LocationType {
+  WAREHOUSE
+  RACK
+  PRODUCTION
+}
+
+enum DocumentType {
+  RECEIPT
+  DELIVERY
+  TRANSFER
+  ADJUSTMENT
+}
+
+enum DocumentStatus {
+  DRAFT
+  WAITING
+  READY
+  DONE
+  CANCELED
+}
+
+enum ContactType {
+  SUPPLIER
+  CUSTOMER
+  INTERNAL
+}
+
+model User {
+  id            String     @id @default(uuid())
+  name          String
+  email         String     @unique
+  passwordHash  String
+  role          Role
+  createdAt     DateTime   @default(now())
+  
+  // Relations
+  documents     Document[]
+}
+
+model Contact {
+  id        String      @id @default(uuid())
+  name      String
+  type      ContactType
+  email     String?
+  phone     String?
+  createdAt DateTime    @default(now())
+
+  // Relations
+  documents Document[]
+}
+
+model Product {
+  id            String   @id @default(uuid())
+  name          String
+  sku           String   @unique
+  category      String
+  unitOfMeasure String
+  createdAt     DateTime @default(now())
+
+  // Relations
+  ledgerEntries StockLedger[]
+  documentLines DocumentLine[]
+  stockLevels   StockLevel[]
+}
+
+model Location {
+  id        String       @id @default(uuid())
+  name      String
+  type      LocationType
+  createdAt DateTime     @default(now())
+
+  // Relations
+  sourceDocuments      Document[] @relation("SourceLocation")
+  destinationDocuments Document[] @relation("DestinationLocation")
+  stockLevels          StockLevel[]
+}
+
+model Document {
+  id                    String         @id @default(uuid())
+  type                  DocumentType
+  status                DocumentStatus @default(DRAFT)
+  contactId             String?
+  createdBy             String
+  sourceLocationId      String?
+  destinationLocationId String?
+  createdAt             DateTime       @default(now())
+
+  // Relations
+  contact             Contact?       @relation(fields: [contactId], references: [id])
+  user                User           @relation(fields: [createdBy], references: [id])
+  sourceLocation      Location?      @relation("SourceLocation", fields: [sourceLocationId], references: [id])
+  destinationLocation Location?      @relation("DestinationLocation", fields: [destinationLocationId], references: [id])
+  lines               DocumentLine[]
+  ledgerEntries       StockLedger[]
+}
+
+model DocumentLine {
+  id                String   @id @default(uuid())
+  documentId        String
+  productId         String
+  requestedQuantity Decimal
+  processedQuantity Decimal  @default(0)
+
+  // Relations
+  document Document @relation(fields: [documentId], references: [id])
+  product  Product  @relation(fields: [productId], references: [id])
+}
+
+model StockLedger {
+  id         String   @id @default(uuid())
+  documentId String
+  productId  String
+  quantity   Decimal
+  timestamp  DateTime @default(now())
+
+  // Relations
+  document Document @relation(fields: [documentId], references: [id])
+  product  Product  @relation(fields: [productId], references: [id])
+}
+
+model StockLevel {
+  productId       String
+  locationId      String
+  currentQuantity Decimal @default(0)
+
+  // Relations
+  product  Product  @relation(fields: [productId], references: [id])
+  location Location @relation(fields: [locationId], references: [id])
+
+  @@id([productId, locationId])
+}
