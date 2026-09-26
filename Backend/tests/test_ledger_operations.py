@@ -161,3 +161,103 @@ async def test_full_inventory_flow_and_ledger(client: AsyncClient, manager_heade
     assert first_entry["document_number"] is not None
     assert first_entry["operator_name"] == "Test Manager"
     assert first_entry["document_type"] is not None
+
+
+@pytest.mark.asyncio
+async def test_document_five_stage_lifecycle(client: AsyncClient, manager_headers: dict):
+    # Setup Location & Product
+    loc_resp = await client.post(
+        "/api/v1/locations", json={"name": "Receiving Dock", "type": "WAREHOUSE"}, headers=manager_headers
+    )
+    loc_id = loc_resp.json()["id"]
+
+    prod_resp = await client.post(
+        "/api/v1/products",
+        json={
+            "name": "Office Ergonomic Chair",
+            "sku": "CHAIR-ERGO",
+            "category": "Furniture",
+            "unit_of_measure": "pcs",
+            "low_stock_threshold": "5.00",
+            "initial_stock": "0.00",
+        },
+        headers=manager_headers,
+    )
+    prod_id = prod_resp.json()["id"]
+
+    # 1. DRAFT: Create receipt slip - inventory numbers must remain completely untouched
+    draft_resp = await client.post(
+        "/api/v1/documents",
+        json={
+            "type": "RECEIPT",
+            "destination_location_id": loc_id,
+            "notes": "Expected PO #1004",
+            "items": [{"product_id": prod_id, "quantity": "50.00"}],
+        },
+        headers=manager_headers,
+    )
+    assert draft_resp.status_code == 201
+    doc_id = draft_resp.json()["id"]
+    assert draft_resp.json()["status"] == "DRAFT"
+
+    # Verify inventory is still 0
+    p1 = await client.get(f"/api/v1/products/{prod_id}", headers=manager_headers)
+    assert float(p1.json()["total_stock"]) == 0.00
+
+    # 2. WAITING: Truck on the way - stock still completely untouched
+    wait_resp = await client.patch(
+        f"/api/v1/documents/{doc_id}/status", json={"status": "WAITING"}, headers=manager_headers
+    )
+    assert wait_resp.status_code == 200
+    assert wait_resp.json()["status"] == "WAITING"
+
+    p2 = await client.get(f"/api/v1/products/{prod_id}", headers=manager_headers)
+    assert float(p2.json()["total_stock"]) == 0.00
+
+    # 3. READY: Pallet unloaded, checked at dock, ready to be shelved - stock still untouched
+    ready_resp = await client.patch(
+        f"/api/v1/documents/{doc_id}/status", json={"status": "READY"}, headers=manager_headers
+    )
+    assert ready_resp.status_code == 200
+    assert ready_resp.json()["status"] == "READY"
+
+    p3 = await client.get(f"/api/v1/products/{prod_id}", headers=manager_headers)
+    assert float(p3.json()["total_stock"]) == 0.00
+
+    # 4. DONE: Worker validates - THE MAGIC MOMENT! Stock updates instantly
+    done_resp = await client.post(f"/api/v1/documents/{doc_id}/validate", headers=manager_headers)
+    assert done_resp.status_code == 200
+    assert done_resp.json()["status"] == "DONE"
+
+    # Inventory now jumps to 50
+    p4 = await client.get(f"/api/v1/products/{prod_id}", headers=manager_headers)
+    assert float(p4.json()["total_stock"]) == 50.00
+
+    # Locked & Immutable: Attempting to modify completed document must fail
+    reopen_resp = await client.patch(
+        f"/api/v1/documents/{doc_id}/status", json={"status": "DRAFT"}, headers=manager_headers
+    )
+    assert reopen_resp.status_code == 400
+
+    # 5. CANCELED: Order canceled before delivery - remains for history, no stock impact
+    cancel_doc_resp = await client.post(
+        "/api/v1/documents",
+        json={
+            "type": "DELIVERY",
+            "source_location_id": loc_id,
+            "items": [{"product_id": prod_id, "quantity": "10.00"}],
+        },
+        headers=manager_headers,
+    )
+    cancel_id = cancel_doc_resp.json()["id"]
+
+    c_resp = await client.patch(
+        f"/api/v1/documents/{cancel_id}/status", json={"status": "CANCELED"}, headers=manager_headers
+    )
+    assert c_resp.status_code == 200
+    assert c_resp.json()["status"] == "CANCELED"
+
+    # Total stock remains 50.00 (not decremented by the 10 units)
+    p5 = await client.get(f"/api/v1/products/{prod_id}", headers=manager_headers)
+    assert float(p5.json()["total_stock"]) == 50.00
+

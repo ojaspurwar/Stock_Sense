@@ -28,6 +28,8 @@ class StockLevelResponse(BaseModel):
     product_id: uuid.UUID
     location_id: uuid.UUID
     current_quantity: Decimal
+    reserved_quantity: Decimal = Decimal("0.0000")
+    available_quantity: Decimal = Decimal("0.0000")
     product: ProductResponse | None = None
     location: LocationResponse | None = None
 

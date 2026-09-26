@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
-from sqlalchemy import DateTime, ForeignKey, Numeric, Uuid
+from sqlalchemy import DateTime, ForeignKey, Numeric, String, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -26,6 +26,9 @@ class StockLedger(Base):
         Uuid(as_uuid=True), ForeignKey("locations.id", ondelete="RESTRICT"), nullable=True
     )
     quantity: Mapped[Decimal] = mapped_column(Numeric(14, 4), nullable=False)
+    unit_cost: Mapped[Decimal | None] = mapped_column(Numeric(14, 4), default=Decimal("0.0000"), nullable=True)
+    prev_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    entry_hash: Mapped[str | None] = mapped_column(String(64), index=True, nullable=True)
     timestamp: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True, nullable=False
     )

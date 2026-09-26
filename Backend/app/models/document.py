@@ -49,6 +49,7 @@ class Document(Base):
         Uuid(as_uuid=True), ForeignKey("locations.id", ondelete="SET NULL"), nullable=True
     )
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    cogs: Mapped[Decimal | None] = mapped_column(Numeric(14, 4), nullable=True, default=Decimal("0.0000"))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
     )
@@ -73,6 +74,7 @@ class DocumentItem(Base):
         Uuid(as_uuid=True), ForeignKey("products.id", ondelete="RESTRICT"), nullable=False
     )
     quantity: Mapped[Decimal] = mapped_column(Numeric(14, 4), nullable=False)
+    unit_price: Mapped[Decimal | None] = mapped_column(Numeric(14, 4), nullable=True)
 
     document = relationship("Document", back_populates="items")
     product = relationship("Product")

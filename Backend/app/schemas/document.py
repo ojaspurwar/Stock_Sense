@@ -10,12 +10,14 @@ from app.schemas.product import ProductResponse
 class DocumentItemCreate(BaseModel):
     product_id: uuid.UUID
     quantity: Decimal = Field(gt=0, description="Quantity must be greater than zero")
+    unit_price: Decimal | None = Field(default=None, description="Purchase unit price / cost for receipts or lot creation")
 
 
 class DocumentItemResponse(BaseModel):
     id: uuid.UUID
     product_id: uuid.UUID
     quantity: Decimal
+    unit_price: Decimal | None = None
     product: ProductResponse | None = None
 
     model_config = ConfigDict(from_attributes=True)
@@ -43,6 +45,7 @@ class DocumentResponse(BaseModel):
     source_location_id: uuid.UUID | None = None
     destination_location_id: uuid.UUID | None = None
     notes: str | None = None
+    cogs: Decimal | None = None
     created_at: datetime
     source_location: LocationResponse | None = None
     destination_location: LocationResponse | None = None

@@ -22,4 +22,7 @@ class DashboardKPIs(BaseModel):
     pending_receipts_count: int
     pending_deliveries_count: int
     scheduled_transfers_count: int
+    total_inventory_quantity: Decimal = Decimal("0.00")
+    total_inventory_value: Decimal = Decimal("0.00")
+    total_cogs: Decimal = Decimal("0.00")
     low_stock_items: list[LowStockAlert] = []
