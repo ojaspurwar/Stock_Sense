@@ -11,10 +11,11 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { LocationHeader } from '../../components/LocationHeader';
 import { StatCard } from '../../components/StatCard';
+import { StatusBadge } from '../../components/StatusBadge';
 import { useLocation } from '../../context/LocationContext';
 import { useAuth } from '../../context/AuthContext';
 import { MobileStorage } from '../../services/storage';
-import { DashboardMetrics, ProductStockSummary } from '../../types';
+import { DashboardMetrics, ProductStockSummary, Document, Product } from '../../types';
 
 export const DashboardScreen = ({ navigation }: any) => {
   const { selectedLocationId, currentLocationName } = useLocation();
@@ -29,6 +30,11 @@ export const DashboardScreen = ({ navigation }: any) => {
     recent_adjustments: 0,
   });
   const [lowStockProducts, setLowStockProducts] = useState<ProductStockSummary[]>([]);
+  const [documents, setDocuments] = useState<Document[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [docTypeFilter, setDocTypeFilter] = useState<string>('ALL');
+  const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [categoryFilter, setCategoryFilter] = useState<string>('ALL');
   const [refreshing, setRefreshing] = useState(false);
 
   const loadData = useCallback(async () => {
@@ -37,6 +43,12 @@ export const DashboardScreen = ({ navigation }: any) => {
 
     const summaries = await MobileStorage.getProductStockSummaries(selectedLocationId);
     setLowStockProducts(summaries.filter((p) => p.is_low_stock || p.is_out_of_stock).slice(0, 3));
+
+    const docs = await MobileStorage.getDocuments(undefined, undefined, selectedLocationId);
+    setDocuments(docs);
+
+    const prods = await MobileStorage.getProducts();
+    setProducts(prods);
   }, [selectedLocationId]);
 
   useEffect(() => {
@@ -54,6 +66,21 @@ export const DashboardScreen = ({ navigation }: any) => {
     const newRole = user.role === 'MANAGER' ? 'STAFF' : 'MANAGER';
     await switchRole(newRole);
   };
+
+  const categories = ['ALL', ...Array.from(new Set(products.map((p) => p.category)))];
+
+  const filteredDocs = documents.filter((doc) => {
+    if (docTypeFilter !== 'ALL' && doc.type !== docTypeFilter) return false;
+    if (statusFilter !== 'ALL' && doc.status !== statusFilter) return false;
+    if (categoryFilter !== 'ALL') {
+      const hasCat = doc.lines.some((line) => {
+        const prod = products.find((p) => p.id === line.product_id);
+        return prod?.category === categoryFilter;
+      });
+      if (!hasCat) return false;
+    }
+    return true;
+  });
 
   return (
     <SafeAreaView style={styles.container}>
@@ -115,7 +142,7 @@ export const DashboardScreen = ({ navigation }: any) => {
           <TouchableOpacity
             style={styles.alertCard}
             activeOpacity={0.8}
-            onPress={() => navigation.navigate('ProductsTab', { filter: 'low' })}
+            onPress={() => navigation.navigate('Products', { filter: 'low' })}
           >
             <View style={styles.alertIconBg}>
               <Ionicons name="warning" size={20} color="#b45309" />
@@ -140,7 +167,7 @@ export const DashboardScreen = ({ navigation }: any) => {
               subtitle="Registered catalog items"
               icon="cube"
               color="#4f46e5"
-              onPress={() => navigation.navigate('ProductsTab')}
+              onPress={() => navigation.navigate('Products')}
             />
           </View>
           <View style={styles.col}>
@@ -151,7 +178,7 @@ export const DashboardScreen = ({ navigation }: any) => {
               icon="alert-circle"
               color="#f59e0b"
               badge={metrics.low_stock_count > 0 ? 'Action' : undefined}
-              onPress={() => navigation.navigate('ProductsTab')}
+              onPress={() => navigation.navigate('Products')}
             />
           </View>
         </View>
@@ -198,7 +225,7 @@ export const DashboardScreen = ({ navigation }: any) => {
               subtitle="Zero on-hand balance"
               icon="close-circle"
               color="#ef4444"
-              onPress={() => navigation.navigate('ProductsTab')}
+              onPress={() => navigation.navigate('Products')}
             />
           </View>
         </View>
@@ -273,6 +300,113 @@ export const DashboardScreen = ({ navigation }: any) => {
             ))}
           </View>
         )}
+
+        {/* Dynamic Filters Section (Problem Statement Page 1) */}
+        <View style={styles.dynFilterContainer}>
+          <View style={styles.dynHeaderRow}>
+            <View>
+              <Text style={styles.sectionHeader}>Dynamic Operations Feed</Text>
+              <Text style={styles.dynSub}>Filter by Document Type, Status, & Category</Text>
+            </View>
+            <View style={styles.docCountBadge}>
+              <Text style={styles.docCountText}>{filteredDocs.length} Documents</Text>
+            </View>
+          </View>
+
+          {/* 1. By Document Type */}
+          <Text style={styles.filterTitleLabel}>Document Type:</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
+            {[
+              { key: 'ALL', label: 'All Types' },
+              { key: 'RECEIPT', label: 'Receipts (In)' },
+              { key: 'DELIVERY', label: 'Deliveries (Out)' },
+              { key: 'TRANSFER', label: 'Internal' },
+              { key: 'ADJUSTMENT', label: 'Adjustments' },
+            ].map((t) => (
+              <TouchableOpacity
+                key={t.key}
+                style={[styles.dynChip, docTypeFilter === t.key && styles.dynChipActive]}
+                onPress={() => setDocTypeFilter(t.key)}
+              >
+                <Text style={[styles.dynChipText, docTypeFilter === t.key && styles.dynChipTextActive]}>
+                  {t.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+
+          {/* 2. By Status */}
+          <Text style={styles.filterTitleLabel}>Status:</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
+            {['ALL', 'DRAFT', 'WAITING', 'READY', 'DONE', 'CANCELED'].map((st) => (
+              <TouchableOpacity
+                key={st}
+                style={[styles.dynChip, statusFilter === st && styles.dynChipActiveStatus]}
+                onPress={() => setStatusFilter(st)}
+              >
+                <Text style={[styles.dynChipText, statusFilter === st && styles.dynChipTextActive]}>
+                  {st}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+
+          {/* 3. By Product Category */}
+          <Text style={styles.filterTitleLabel}>Product Category:</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
+            {categories.map((c) => (
+              <TouchableOpacity
+                key={c}
+                style={[styles.dynChip, categoryFilter === c && styles.dynChipActiveCat]}
+                onPress={() => setCategoryFilter(c)}
+              >
+                <Text style={[styles.dynChipText, categoryFilter === c && styles.dynChipTextActive]}>
+                  {c}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+
+          {/* Filtered Operations Feed */}
+          <View style={styles.feedBox}>
+            {filteredDocs.length === 0 ? (
+              <View style={styles.feedEmpty}>
+                <Ionicons name="filter-outline" size={32} color="#94a3b8" />
+                <Text style={styles.feedEmptyText}>No operations match the selected dynamic filters.</Text>
+              </View>
+            ) : (
+              filteredDocs.map((doc) => (
+                <View key={doc.id} style={styles.feedCard}>
+                  <View style={styles.feedCardTop}>
+                    <View>
+                      <Text style={styles.feedDocCode}>{doc.code}</Text>
+                      <Text style={styles.feedDocDate}>
+                        {new Date(doc.created_at).toLocaleDateString()} • {doc.type}
+                      </Text>
+                    </View>
+                    <StatusBadge status={doc.status} />
+                  </View>
+
+                  <View style={styles.feedRoute}>
+                    <Ionicons name="location-outline" size={13} color="#64748b" />
+                    <Text style={styles.feedRouteText} numberOfLines={1}>
+                      {doc.source_location_name || 'Vendor / Ext'} → {doc.destination_location_name || 'Customer / Ext'}
+                    </Text>
+                  </View>
+
+                  {doc.lines.map((l, i) => (
+                    <View key={i} style={styles.feedLineRow}>
+                      <Text style={styles.feedLineName}>{l.product_name}</Text>
+                      <Text style={styles.feedLineQty}>
+                        {l.requested_quantity} {l.unit_of_measure}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              ))
+            )}
+          </View>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -505,5 +639,140 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: '#94a3b8',
     marginTop: 2,
+  },
+  dynFilterContainer: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    marginTop: 16,
+  },
+  dynHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  dynSub: {
+    fontSize: 11,
+    color: '#64748b',
+    marginTop: 2,
+  },
+  docCountBadge: {
+    backgroundColor: '#e0e7ff',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  docCountText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#4338ca',
+  },
+  filterTitleLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#334155',
+    marginTop: 10,
+    marginBottom: 6,
+  },
+  filterScroll: {
+    paddingBottom: 2,
+  },
+  dynChip: {
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginRight: 6,
+  },
+  dynChipActive: {
+    backgroundColor: '#4f46e5',
+    borderColor: '#4f46e5',
+  },
+  dynChipActiveStatus: {
+    backgroundColor: '#0284c7',
+    borderColor: '#0284c7',
+  },
+  dynChipActiveCat: {
+    backgroundColor: '#059669',
+    borderColor: '#059669',
+  },
+  dynChipText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#64748b',
+  },
+  dynChipTextActive: {
+    color: '#ffffff',
+  },
+  feedBox: {
+    marginTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: '#f1f5f9',
+    paddingTop: 12,
+  },
+  feedEmpty: {
+    alignItems: 'center',
+    paddingVertical: 20,
+  },
+  feedEmptyText: {
+    fontSize: 12,
+    color: '#94a3b8',
+    marginTop: 6,
+    textAlign: 'center',
+  },
+  feedCard: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  feedCardTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  feedDocCode: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0f172a',
+  },
+  feedDocDate: {
+    fontSize: 10,
+    color: '#94a3b8',
+    marginTop: 2,
+  },
+  feedRoute: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
+    marginBottom: 6,
+  },
+  feedRouteText: {
+    fontSize: 11,
+    color: '#475569',
+    marginLeft: 4,
+  },
+  feedLineRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingTop: 4,
+    borderTopWidth: 1,
+    borderTopColor: '#f1f5f9',
+  },
+  feedLineName: {
+    fontSize: 11,
+    color: '#334155',
+  },
+  feedLineQty: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#0f172a',
   },
 });

@@ -42,6 +42,14 @@ export const ProductsScreen = ({ route }: any) => {
   const [newProdInitQty, setNewProdInitQty] = useState('');
   const [newProdInitLoc, setNewProdInitLoc] = useState('');
 
+  // Edit Product Modal (Reordering Rules & Details)
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<ProductStockSummary | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editCategory, setEditCategory] = useState('');
+  const [editUom, setEditUom] = useState('');
+  const [editMinReorder, setEditMinReorder] = useState('');
+
   const initialFilter = route?.params?.filter;
 
   useEffect(() => {
@@ -113,6 +121,34 @@ export const ProductsScreen = ({ route }: any) => {
     setNewProdInitQty('');
     await loadData();
     Alert.alert('Success', `Product ${newProdSku.toUpperCase()} created successfully.`);
+  };
+
+  const handleOpenEditProduct = (prod: ProductStockSummary) => {
+    setEditingProduct(prod);
+    setEditName(prod.name);
+    setEditCategory(prod.category);
+    setEditUom(prod.unit_of_measure);
+    setEditMinReorder(String(prod.min_reorder_level));
+    setEditModalVisible(true);
+  };
+
+  const handleSaveProductUpdate = async () => {
+    if (!editingProduct) return;
+    if (!editName.trim()) {
+      Alert.alert('Validation Error', 'Product Name is required.');
+      return;
+    }
+    const minLvl = parseInt(editMinReorder, 10) || 10;
+    await MobileStorage.updateProduct(editingProduct.id, {
+      name: editName.trim(),
+      category: editCategory,
+      unit_of_measure: editUom,
+      min_reorder_level: minLvl,
+    });
+    setEditModalVisible(false);
+    setEditingProduct(null);
+    await loadData();
+    Alert.alert('Updated', `Product ${editingProduct.sku} updated successfully.`);
   };
 
   return (
@@ -235,7 +271,17 @@ export const ProductsScreen = ({ route }: any) => {
             >
               <View style={styles.cardHeader}>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.prodName}>{item.name}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Text style={styles.prodName}>{item.name}</Text>
+                    {user?.role === 'MANAGER' && (
+                      <TouchableOpacity
+                        onPress={() => handleOpenEditProduct(item)}
+                        style={styles.editProdIconBtn}
+                      >
+                        <Ionicons name="pencil" size={14} color="#4f46e5" />
+                      </TouchableOpacity>
+                    )}
+                  </View>
                   <View style={styles.metaRow}>
                     <View style={styles.skuBadge}>
                       <Text style={styles.skuText}>{item.sku}</Text>
@@ -254,8 +300,16 @@ export const ProductsScreen = ({ route }: any) => {
                   >
                     {item.total_stock} {item.unit_of_measure}
                   </Text>
-                  <Text style={styles.reorderText}>Min: {item.min_reorder_level}</Text>
+                  <Text style={styles.reorderText}>Reorder Min: {item.min_reorder_level}</Text>
                 </View>
+              </View>
+
+              {/* Reordering Rule Indicator */}
+              <View style={styles.reorderRuleBox}>
+                <Ionicons name="shield-outline" size={12} color="#64748b" />
+                <Text style={styles.reorderRuleText}>
+                  Reordering Rule: Alert triggers when stock ≤ {item.min_reorder_level} {item.unit_of_measure}
+                </Text>
               </View>
 
               {/* Status Alert Tags */}
@@ -425,6 +479,91 @@ export const ProductsScreen = ({ route }: any) => {
 
               <TouchableOpacity style={styles.saveBtn} onPress={handleCreateProduct}>
                 <Text style={styles.saveBtnText}>Save Product to Catalog</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </SafeAreaView>
+      </Modal>
+
+      {/* Edit Product Modal (Update Details & Reordering Rules) */}
+      <Modal visible={editModalVisible} animationType="slide" transparent>
+        <SafeAreaView style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalTitle}>Update Product</Text>
+                <Text style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
+                  SKU: {editingProduct?.sku}
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setEditModalVisible(false)}>
+                <Ionicons name="close" size={24} color="#64748b" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView contentContainerStyle={styles.formScroll}>
+              <Text style={styles.inputLabel}>Product Name *</Text>
+              <TextInput
+                style={styles.formInput}
+                value={editName}
+                onChangeText={setEditName}
+              />
+
+              <Text style={styles.inputLabel}>Category</Text>
+              <View style={styles.pickerRow}>
+                {['Raw Materials', 'Fasteners', 'Fluids & Chemicals', 'Mechanical', 'Packaging'].map(
+                  (c) => (
+                    <TouchableOpacity
+                      key={c}
+                      style={[
+                        styles.pickerChip,
+                        editCategory === c && styles.pickerChipActive,
+                      ]}
+                      onPress={() => setEditCategory(c)}
+                    >
+                      <Text
+                        style={[
+                          styles.pickerText,
+                          editCategory === c && styles.pickerTextActive,
+                        ]}
+                      >
+                        {c}
+                      </Text>
+                    </TouchableOpacity>
+                  )
+                )}
+              </View>
+
+              <View style={styles.row}>
+                <View style={{ flex: 1, marginRight: 8 }}>
+                  <Text style={styles.inputLabel}>Unit of Measure</Text>
+                  <TextInput
+                    style={styles.formInput}
+                    value={editUom}
+                    onChangeText={setEditUom}
+                  />
+                </View>
+
+                <View style={{ flex: 1, marginLeft: 8 }}>
+                  <Text style={styles.inputLabel}>Reorder Min Level *</Text>
+                  <TextInput
+                    style={styles.formInput}
+                    keyboardType="number-pad"
+                    value={editMinReorder}
+                    onChangeText={setEditMinReorder}
+                  />
+                </View>
+              </View>
+
+              <View style={styles.reorderExplainer}>
+                <Ionicons name="information-circle" size={16} color="#4f46e5" />
+                <Text style={styles.reorderExplainerText}>
+                  Reordering Rule: Whenever total available stock falls at or below this value, the system triggers a Low Stock Alert across the dashboard and inventory catalog.
+                </Text>
+              </View>
+
+              <TouchableOpacity style={styles.saveBtn} onPress={handleSaveProductUpdate}>
+                <Text style={styles.saveBtnText}>Update Product & Rules</Text>
               </TouchableOpacity>
             </ScrollView>
           </View>
@@ -788,5 +927,40 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 14,
     fontWeight: '700',
+  },
+  editProdIconBtn: {
+    marginLeft: 8,
+    padding: 4,
+    backgroundColor: '#eef2ff',
+    borderRadius: 6,
+  },
+  reorderRuleBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginTop: 8,
+  },
+  reorderRuleText: {
+    fontSize: 10,
+    color: '#64748b',
+    marginLeft: 4,
+    fontWeight: '500',
+  },
+  reorderExplainer: {
+    flexDirection: 'row',
+    backgroundColor: '#eff6ff',
+    borderRadius: 10,
+    padding: 10,
+    marginTop: 12,
+  },
+  reorderExplainerText: {
+    fontSize: 11,
+    color: '#1e40af',
+    marginLeft: 6,
+    flex: 1,
+    lineHeight: 16,
   },
 });

@@ -14,11 +14,12 @@ import { LoginScreen } from './src/screens/auth/LoginScreen';
 import { SignupScreen } from './src/screens/auth/SignupScreen';
 import { ForgotPasswordScreen } from './src/screens/auth/ForgotPasswordScreen';
 
-// Main App Screens
+// Main App Screens (aligned with StockSense PDF specification)
 import { DashboardScreen } from './src/screens/dashboard/DashboardScreen';
 import { ProductsScreen } from './src/screens/products/ProductsScreen';
 import { OperationsHubScreen } from './src/screens/operations/OperationsHubScreen';
 import { LedgerScreen } from './src/screens/ledger/LedgerScreen';
+import { SettingsHubScreen } from './src/screens/settings/SettingsHubScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -32,20 +33,22 @@ function MainTabs() {
           let iconName: any = 'cube';
           if (route.name === 'Dashboard') {
             iconName = focused ? 'speedometer' : 'speedometer-outline';
-          } else if (route.name === 'ProductsTab') {
+          } else if (route.name === 'Products') {
             iconName = focused ? 'cube' : 'cube-outline';
           } else if (route.name === 'Operations') {
             iconName = focused ? 'layers' : 'layers-outline';
-          } else if (route.name === 'Ledger') {
+          } else if (route.name === 'MoveHistory') {
             iconName = focused ? 'journal' : 'journal-outline';
+          } else if (route.name === 'Settings') {
+            iconName = focused ? 'settings' : 'settings-outline';
           }
           return <Ionicons name={iconName} size={size} color={color} />;
         },
         tabBarActiveTintColor: '#4f46e5',
         tabBarInactiveTintColor: '#94a3b8',
         tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: '600',
+          fontSize: 10,
+          fontWeight: '700',
         },
         tabBarStyle: {
           borderTopColor: '#f1f5f9',
@@ -56,11 +59,15 @@ function MainTabs() {
         },
       })}
     >
-      <Tab.Screen name="Dashboard" component={DashboardScreen} />
       <Tab.Screen
-        name="ProductsTab"
+        name="Dashboard"
+        component={DashboardScreen}
+        options={{ title: 'Dashboard' }}
+      />
+      <Tab.Screen
+        name="Products"
         component={ProductsScreen}
-        options={{ title: 'Catalog' }}
+        options={{ title: 'Products' }}
       />
       <Tab.Screen
         name="Operations"
@@ -68,9 +75,14 @@ function MainTabs() {
         options={{ title: 'Operations' }}
       />
       <Tab.Screen
-        name="Ledger"
+        name="MoveHistory"
         component={LedgerScreen}
-        options={{ title: 'Ledger' }}
+        options={{ title: 'Move History' }}
+      />
+      <Tab.Screen
+        name="Settings"
+        component={SettingsHubScreen}
+        options={{ title: 'Settings' }}
       />
     </Tab.Navigator>
   );

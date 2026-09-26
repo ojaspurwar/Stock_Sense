@@ -167,6 +167,39 @@ export const MobileStorage = {
     return newProduct;
   },
 
+  async updateProduct(id: string, updates: Partial<Product>): Promise<Product | null> {
+    const db = await this.getDB();
+    const idx = db.products.findIndex((p) => p.id === id);
+    if (idx === -1) return null;
+
+    db.products[idx] = {
+      ...db.products[idx],
+      ...updates,
+    };
+    await this.saveDB(db);
+    return db.products[idx];
+  },
+
+  async createLocation(data: {
+    name: string;
+    code: string;
+    type: 'WAREHOUSE' | 'RACK' | 'PRODUCTION';
+    description?: string;
+  }): Promise<Location> {
+    const db = await this.getDB();
+    const newLoc: Location = {
+      id: `loc-${Date.now()}`,
+      name: data.name,
+      code: data.code.toUpperCase(),
+      type: data.type,
+      description: data.description,
+      created_at: new Date().toISOString(),
+    };
+    db.locations.push(newLoc);
+    await this.saveDB(db);
+    return newLoc;
+  },
+
   // Stock Summaries with Location Breakdown
   async getProductStockSummaries(locationIdFilter?: string): Promise<ProductStockSummary[]> {
     const db = await this.getDB();
