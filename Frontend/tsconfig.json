@@ -1,25 +1,31 @@
 {
+  "extends": "expo/tsconfig.base",
   "compilerOptions": {
-    "target": "ES2020",
-    "useDefineForClassFields": true,
-    "lib": ["ES2020", "DOM", "DOM.Iterable"],
-    "module": "ESNext",
-    "skipLibCheck": true,
-    "moduleResolution": "bundler",
-    "allowImportingTsExtensions": false,
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "noEmit": true,
-    "jsx": "react-jsx",
     "strict": true,
-    "noUnusedLocals": false,
-    "noUnusedParameters": false,
-    "noFallthroughCasesInSwitch": true,
-    "baseUrl": ".",
-    "paths": {
-      "@/*": ["src/*"]
-    }
+    "skipLibCheck": true
   },
-  "include": ["src"],
-  "references": [{ "path": "./tsconfig.node.json" }]
+  "include": [
+    "App.tsx",
+    "index.ts",
+    "src/components/*.tsx",
+    "src/context/AuthContext.tsx",
+    "src/context/LocationContext.tsx",
+    "src/screens/**/*",
+    "src/services/api.ts",
+    "src/services/mockData.ts",
+    "src/services/storage.ts",
+    "src/types/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "src/components/common/**/*",
+    "src/components/layout/**/*",
+    "src/context/NotificationContext.tsx",
+    "src/pages/**/*",
+    "src/main.tsx",
+    "src/App.tsx",
+    "src/services/mockStorage.ts",
+    "src/lib/**/*",
+    "vite.config.ts"
+  ]
 }

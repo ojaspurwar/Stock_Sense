@@ -1,13 +1,13 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, Role } from '../types';
-import { MockStorage } from '../services/mockStorage';
+import { MobileStorage } from '../services/storage';
 
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
-  login: (email: string, role?: Role) => boolean;
-  logout: () => void;
-  switchRole: (role: Role) => void;
+  login: (email: string, role?: Role) => Promise<boolean>;
+  logout: () => Promise<void>;
+  switchRole: (role: Role) => Promise<void>;
   requestOtp: (email: string) => Promise<{ success: boolean; message: string; otp?: string }>;
   verifyOtpAndReset: (email: string, otp: string) => Promise<{ success: boolean; message: string }>;
 }
@@ -18,18 +18,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
-    const current = MockStorage.getCurrentUser();
-    setUser(current);
+    MobileStorage.getCurrentUser().then(setUser);
   }, []);
 
-  const login = (email: string, role: Role = 'MANAGER'): boolean => {
-    const existing = MockStorage.getUsers().find((u) => u.email.toLowerCase() === email.toLowerCase());
+  const login = async (email: string, role: Role = 'MANAGER'): Promise<boolean> => {
+    const db = await MobileStorage.getDB();
+    const existing = db.users.find((u) => u.email.toLowerCase() === email.toLowerCase());
     if (existing) {
       setUser(existing);
-      MockStorage.setCurrentUser(existing);
+      await MobileStorage.setCurrentUser(existing);
       return true;
     }
-    // Create quick session user
     const newUser: User = {
       id: `usr-${Date.now()}`,
       name: email.split('@')[0],
@@ -38,37 +37,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       created_at: new Date().toISOString(),
     };
     setUser(newUser);
-    MockStorage.setCurrentUser(newUser);
+    await MobileStorage.setCurrentUser(newUser);
     return true;
   };
 
-  const logout = () => {
+  const logout = async () => {
     setUser(null);
-    localStorage.removeItem('stocksense_current_user_v1');
   };
 
-  const switchRole = (newRole: Role) => {
+  const switchRole = async (newRole: Role) => {
     if (!user) return;
     const updated: User = { ...user, role: newRole };
     setUser(updated);
-    MockStorage.setCurrentUser(updated);
+    await MobileStorage.setCurrentUser(updated);
   };
 
   const requestOtp = async (email: string) => {
-    // Simulated OTP generation
     const mockOtp = '849201';
     return {
       success: true,
-      message: `OTP sent to ${email}. For demo testing, use code: ${mockOtp}`,
+      message: `OTP sent to ${email}. Code: ${mockOtp}`,
       otp: mockOtp,
     };
   };
 
   const verifyOtpAndReset = async (_email: string, otp: string) => {
     if (otp === '849201' || otp.length === 6) {
-      return { success: true, message: 'Password has been successfully updated.' };
+      return { success: true, message: 'Password has been updated successfully.' };
     }
-    return { success: false, message: 'Invalid OTP code. Please enter the 6-digit code.' };
+    return { success: false, message: 'Invalid OTP code. Please enter 6-digit code.' };
   };
 
   return (

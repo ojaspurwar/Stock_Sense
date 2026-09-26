@@ -1,13 +1,13 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Location } from '../types';
-import { MockStorage } from '../services/mockStorage';
+import { MobileStorage } from '../services/storage';
 
 interface LocationContextType {
-  selectedLocationId: string; // 'all' or location uuid
+  selectedLocationId: string;
   setSelectedLocationId: (id: string) => void;
   locations: Location[];
   currentLocationName: string;
-  refreshLocations: () => void;
+  refreshLocations: () => Promise<void>;
 }
 
 const LocationContext = createContext<LocationContextType | undefined>(undefined);
@@ -16,8 +16,9 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [selectedLocationId, setSelectedLocationId] = useState<string>('all');
   const [locations, setLocations] = useState<Location[]>([]);
 
-  const refreshLocations = () => {
-    setLocations(MockStorage.getLocations());
+  const refreshLocations = async () => {
+    const locs = await MobileStorage.getLocations();
+    setLocations(locs);
   };
 
   useEffect(() => {

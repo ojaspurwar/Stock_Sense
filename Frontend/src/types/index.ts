@@ -1,4 +1,4 @@
-// Aligned with Database/Schema-Plan.md
+// Aligned with Database/Schema-Plan.md and Backend/README.md
 
 export type Role = 'MANAGER' | 'STAFF';
 
@@ -7,6 +7,15 @@ export interface User {
   name: string;
   email: string;
   role: Role;
+  created_at: string;
+}
+
+export interface Contact {
+  id: string;
+  name: string;
+  type: 'SUPPLIER' | 'CUSTOMER' | 'INTERNAL';
+  email?: string;
+  phone?: string;
   created_at: string;
 }
 
@@ -40,7 +49,9 @@ export interface DocumentLine {
   product_id: string;
   product_name: string;
   sku: string;
-  quantity: number;
+  requested_quantity: number;
+  processed_quantity: number;
+  quantity?: number;
   received_quantity?: number;
   unit_of_measure: string;
 }
@@ -50,20 +61,20 @@ export interface Document {
   code: string; // e.g. REC-2026-001, DEL-2026-001, TRF-2026-001, ADJ-2026-001
   type: DocumentType;
   status: DocumentStatus;
-  created_by: string; // User ID
+  created_by: string;
   creator_name: string;
   source_location_id?: string | null;
   source_location_name?: string | null;
   destination_location_id?: string | null;
   destination_location_name?: string | null;
-  partner_name?: string; // Vendor name for Receipts, Customer name for Deliveries
+  contact_id?: string | null;
+  partner_name?: string;
   notes?: string;
   lines: DocumentLine[];
   created_at: string;
   updated_at: string;
 }
 
-// Double-Entry Immutable Ledger Record
 export interface StockLedgerEntry {
   id: string;
   document_id: string;
@@ -83,7 +94,6 @@ export interface StockLedgerEntry {
   notes?: string;
 }
 
-// Materialized Fast-Read Cache for Stock Levels
 export interface StockLevel {
   product_id: string;
   location_id: string;
