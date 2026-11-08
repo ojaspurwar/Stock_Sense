@@ -6,6 +6,49 @@ import { Pill } from '../../components/ui/Pill';
 import { GlassCard } from '../../components/ui/GlassCard';
 import { SegmentedControl } from '../../components/ui/SegmentedControl';
 
+// Animated count-up: 600ms ease-out, counts from previous value to target
+function useCountUp(target: number, duration = 600) {
+  const [value, setValue] = useState(0);
+  const raf = useRef<number | null>(null);
+  const prev = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (raf.current) {
+      cancelAnimationFrame(raf.current);
+      raf.current = null;
+    }
+
+    const start = prev.current ?? 0;
+    if (target === start) {
+      prev.current = target;
+      return;
+    }
+
+    const startTime = performance.now();
+    const easeOut = (t: number) => 1 - Math.pow(1 - t, 3);
+
+    const loop = (now: number) => {
+      const elapsed = now - startTime;
+      const t = Math.min(elapsed / duration, 1);
+      setValue(Math.round(start + (target - start) * easeOut(t)));
+      if (t < 1) {
+        raf.current = requestAnimationFrame(loop);
+      } else {
+        raf.current = null;
+        prev.current = target;
+      }
+    };
+
+    raf.current = requestAnimationFrame(loop);
+
+    return () => {
+      if (raf.current) cancelAnimationFrame(raf.current);
+    };
+  }, [target, duration]);
+
+  return value;
+}
+
 export interface DashboardScreenProps {
   searchQuery?: string;
   filterType?: string;
@@ -139,6 +182,14 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
   const scheduledTransfers = documents.filter(
     (d) => d.type === 'TRANSFER' && d.status !== 'DONE' && d.status !== 'CANCELED'
   ).length;
+
+  // Animated KPI count-ups (600ms ease-out)
+  const animatedInStock = useCountUp(inStockCount);
+  const animatedLowCount = useCountUp(lowCount);
+  const animatedOutCount = useCountUp(outCount);
+  const animatedPendingReceipts = useCountUp(pendingReceipts);
+  const animatedPendingDeliveries = useCountUp(pendingDeliveries);
+  const animatedScheduledTransfers = useCountUp(scheduledTransfers);
 
   // Multi-warehouse counts
   const warehouseBreakdown = useMemo(() => {
@@ -349,34 +400,34 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
       <section className="kpis">
         <div className="kpi" onClick={() => onNavigate?.('products')}>
           <small>Products in stock</small>
-          <b>{inStockCount}</b>
+          <b className="tabular-nums">{animatedInStock}</b>
           <span>of {totalProducts} products</span>
         </div>
 
         <div className="kpi" onClick={() => onNavigate?.('products')}>
           <small>Low / out of stock</small>
-          <b>
-            {lowCount}
-            <span className="of"> / {outCount}</span>
+          <b className="tabular-nums">
+            {animatedLowCount}
+            <span className="of"> / {animatedOutCount}</span>
           </b>
-          <span className="alert">{lowCount + outCount} need reorder</span>
+          <span className="alert">{animatedLowCount + animatedOutCount} need reorder</span>
         </div>
 
         <div className="kpi" onClick={() => onNavigate?.('receipts')}>
           <small>Pending receipts</small>
-          <b>{pendingReceipts}</b>
+          <b className="tabular-nums">{animatedPendingReceipts}</b>
           <span>{pendingReceipts > 0 ? `${pendingReceipts} due soon` : 'All clear'}</span>
         </div>
 
         <div className="kpi" onClick={() => onNavigate?.('deliveries')}>
           <small>Pending deliveries</small>
-          <b>{pendingDeliveries}</b>
+          <b className="tabular-nums">{animatedPendingDeliveries}</b>
           <span>{pendingDeliveries > 0 ? `${pendingDeliveries} ready to ship` : 'All shipped'}</span>
         </div>
 
         <div className="kpi" onClick={() => onNavigate?.('transfers')}>
           <small>Transfers scheduled</small>
-          <b>{scheduledTransfers}</b>
+          <b className="tabular-nums">{animatedScheduledTransfers}</b>
           <span>{scheduledTransfers > 0 ? 'Next today, 16:00' : 'None scheduled'}</span>
         </div>
       </section>

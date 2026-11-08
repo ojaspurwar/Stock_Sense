@@ -23,6 +23,22 @@ import {
 const STORAGE_KEY = 'stocksense_mobile_db_v1';
 const CURRENT_USER_KEY = 'stocksense_mobile_user_v1';
 
+const storageHelper = {
+  getItem: async (key: string): Promise<string | null> => {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      return window.localStorage.getItem(key);
+    }
+    return AsyncStorage.getItem(key);
+  },
+  setItem: async (key: string, value: string): Promise<void> => {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      window.localStorage.setItem(key, value);
+      return;
+    }
+    return AsyncStorage.setItem(key, value);
+  },
+};
+
 interface DBState {
   users: User[];
   locations: Location[];
@@ -35,7 +51,7 @@ interface DBState {
 export const MobileStorage = {
   async getDB(): Promise<DBState> {
     try {
-      const raw = await AsyncStorage.getItem(STORAGE_KEY);
+      const raw = await storageHelper.getItem(STORAGE_KEY);
       if (!raw) {
         const initial: DBState = {
           users: INITIAL_USERS,
@@ -63,7 +79,7 @@ export const MobileStorage = {
 
   async saveDB(state: DBState): Promise<void> {
     try {
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      await storageHelper.setItem(STORAGE_KEY, JSON.stringify(state));
     } catch (err) {
       console.error('Failed to save to AsyncStorage', err);
     }
@@ -83,19 +99,19 @@ export const MobileStorage = {
 
   // Auth & Current User
   async getCurrentUser(): Promise<User> {
-    const raw = await AsyncStorage.getItem(CURRENT_USER_KEY);
+    const raw = await storageHelper.getItem(CURRENT_USER_KEY);
     if (raw) {
       try {
         return JSON.parse(raw);
       } catch {}
     }
     const defaultUser = INITIAL_USERS[0];
-    await AsyncStorage.setItem(CURRENT_USER_KEY, JSON.stringify(defaultUser));
+    await storageHelper.setItem(CURRENT_USER_KEY, JSON.stringify(defaultUser));
     return defaultUser;
   },
 
   async setCurrentUser(user: User): Promise<void> {
-    await AsyncStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
+    await storageHelper.setItem(CURRENT_USER_KEY, JSON.stringify(user));
   },
 
   // Locations

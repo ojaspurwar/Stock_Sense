@@ -91,8 +91,8 @@ export const AdjustmentsScreen: React.FC<AdjustmentsScreenProps> = ({
   const currentProd = products.find((p) => p.id === selectedProductId);
 
   const handleApplyAdjustment = async () => {
-    if (!selectedProductId || !locationId || countedQty === '') {
-      setToastMsg('Please fill all adjustment fields.');
+    if (!selectedProductId || !locationId || countedQty === '' || Number(countedQty) < 0) {
+      setToastMsg('Please enter a valid non-negative counted quantity and select product and location.');
       return;
     }
 

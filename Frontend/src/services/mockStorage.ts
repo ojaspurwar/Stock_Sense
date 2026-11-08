@@ -175,6 +175,21 @@ export const MockStorage = {
     }
 
     saveDB(db);
+
+    // Asynchronously synchronize newly created product with the live Backend API and Database
+    if (typeof window !== 'undefined') {
+      fetch('/api/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: data.name,
+          sku: data.sku,
+          category: data.category,
+          unitOfMeasure: data.unit_of_measure,
+        }),
+      }).catch((err) => console.warn('Could not sync product to backend database:', err));
+    }
+
     return newProduct;
   },
 

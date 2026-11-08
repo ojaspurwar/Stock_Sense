@@ -43,11 +43,7 @@ export const Drawer: React.FC<DrawerProps> = ({
 
   const handleClose = () => {
     if (isClosing) return;
-    setIsClosing(true);
-    const reduce = isReducedMotion();
-    closeTimerRef.current = setTimeout(() => {
-      onClose();
-    }, reduce ? 1 : MOTION.durDrawerOut);
+    onClose();
   };
 
   // Close on Escape key

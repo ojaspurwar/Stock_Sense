@@ -76,8 +76,8 @@ export const ReceiptsScreen: React.FC<ReceiptsScreenProps> = ({
   }, [autoOpenCreate]);
 
   const handleCreateReceipt = async () => {
-    if (!vendorName.trim() || !destLocationId || !selectedProductId || !Number(quantity)) {
-      setToastMsg('Please fill all required receipt fields.');
+    if (!vendorName.trim() || !destLocationId || !selectedProductId || !Number(quantity) || Number(quantity) <= 0) {
+      setToastMsg('Please enter a valid positive quantity and fill all required receipt fields.');
       return;
     }
 

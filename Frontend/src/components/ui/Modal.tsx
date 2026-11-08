@@ -52,12 +52,7 @@ export const Modal: React.FC<ModalProps> = ({
 
   const handleClose = () => {
     if (isClosing) return;
-    setIsClosing(true);
-    const reduce = isReducedMotion();
-    closeTimerRef.current = setTimeout(() => {
-      onClose();
-      triggerElRef.current?.focus?.();
-    }, reduce ? 1 : MOTION.durModalOut);
+    onClose();
   };
 
   // Close on Escape key

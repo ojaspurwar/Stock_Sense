@@ -6,12 +6,27 @@ import path from 'path';
 export default defineConfig({
   plugins: [react()],
   resolve: {
+    dedupe: ['react', 'react-dom'],
     alias: {
-      '@': path.resolve(__dirname, './src'),
+      '@': path.resolve(import.meta.dirname, './src'),
+      'react': path.resolve(import.meta.dirname, './node_modules/react'),
+      'react-dom': path.resolve(import.meta.dirname, './node_modules/react-dom'),
+      'react-native': 'react-native-web',
     },
+  },
+  optimizeDeps: {
+    include: ['react', 'react-dom', 'react-native-web'],
+    force: true,
   },
   server: {
     port: 3000,
-    open: true,
+    open: false,
+    host: true,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+      },
+    },
   },
 });

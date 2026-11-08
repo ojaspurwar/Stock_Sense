@@ -1,8 +1,6 @@
-import { Platform } from 'react-native';
-
 const STOCKSENSE_CSS = `
 /* =========================================================
-   StockSense — shared styles (tokens, app shell, components)
+   StockSense â€” shared styles (tokens, app shell, components)
    Palette: white, light grey, sky blue. Ink for text. No green anywhere.
    ========================================================= */
 :root {
@@ -30,7 +28,7 @@ const STOCKSENSE_CSS = `
   --gap: 10px;
   --sidebar: 220px;
 
-  /* Motion tokens — shared motion system */
+  /* Motion tokens â€” shared motion system */
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-in: cubic-bezier(0.4, 0, 1, 1);
   --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
@@ -1674,7 +1672,7 @@ td.when {
   to { transform: translate3d(100%, 0, 0); }
 }
 
-/* Modal Box: fade + rise 8px + scale 0.97→1 (--dur-md 320ms, ease-out), close 200ms (--dur-sm, ease-in) */
+/* Modal Box: fade + rise 8px + scale 0.97â†’1 (--dur-md 320ms, ease-out), close 200ms (--dur-sm, ease-in) */
 .modal {
   background: #fff;
   border-radius: 8px;
@@ -1709,7 +1707,7 @@ td.when {
   }
 }
 
-/* Dropdowns / Filter Menus: fade + 4px drop + scale 0.98→1 (200ms --dur-sm, ease-out), close 140ms (--dur-xs, ease-in) */
+/* Dropdowns / Filter Menus: fade + 4px drop + scale 0.98â†’1 (200ms --dur-sm, ease-out), close 140ms (--dur-xs, ease-in) */
 .dropdown-menu, .apple-popover {
   animation: dropdownEnter var(--dur-sm) var(--ease-out) forwards;
   transform-origin: top right;
@@ -1740,7 +1738,7 @@ td.when {
   }
 }
 
-/* Dropdown chevron rotates 180° (--dur-md, ease-out) */
+/* Dropdown chevron rotates 180Â° (--dur-md, ease-out) */
 .dropdown-chevron {
   display: inline-block;
   transition: transform var(--dur-md) var(--ease-out);
@@ -1749,7 +1747,7 @@ td.when {
   transform: rotate(180deg);
 }
 
-/* Expandable rows / accordions: grid-template-rows 0fr→1fr (--dur-md), inner content fades in with 60ms delay, chevron rotates 90° */
+/* Expandable rows / accordions: grid-template-rows 0frâ†’1fr (--dur-md), inner content fades in with 60ms delay, chevron rotates 90Â° */
 .accordion-wrapper {
   display: grid;
   grid-template-rows: 0fr;
@@ -1907,6 +1905,55 @@ button:active:not(:disabled), .btn:active:not(:disabled), .btn-white:active:not(
   transition: transform var(--dur-lg) var(--ease-out), height var(--dur-lg) var(--ease-out), d var(--dur-lg) var(--ease-out);
 }
 
+@keyframes chartDraw {
+  from {
+    stroke-dashoffset: 2000;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.chart-step-line {
+  stroke-dasharray: 2000;
+  stroke-dashoffset: 0;
+  animation: chartDraw 800ms var(--ease-out) forwards;
+}
+
+@keyframes alertPulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(1.2);
+  }
+}
+
+.kpi span.alert {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.kpi span.alert::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--coral);
+  animation: alertPulse 2s var(--ease-in-out) infinite;
+}
+
+/* Table interactive hover animation */
+table tbody tr {
+  transition: background-color var(--dur-xs) var(--ease-out);
+}
+table tbody tr:hover {
+  background-color: var(--sky-50) !important;
+}
+
 /* Glass element rule: never animate transform on glass, only opacity */
 .glass {
   transition: opacity var(--dur-sm) var(--ease-out);
@@ -1988,7 +2035,7 @@ button:active:not(:disabled), .btn:active:not(:disabled), .btn-white:active:not(
 `;
 
 export function injectGlobalStyles() {
-  if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+  if (typeof document === 'undefined') return;
 
   // 1. Inject Google Fonts
   const fontLinkId = 'stocksense-google-fonts';

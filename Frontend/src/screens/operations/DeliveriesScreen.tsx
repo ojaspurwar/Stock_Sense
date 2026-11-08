@@ -130,8 +130,8 @@ export const DeliveriesScreen: React.FC<DeliveriesScreenProps> = ({
   };
 
   const handleCreateDelivery = async () => {
-    if (!customerName.trim() || !sourceLocationId || !selectedProductId || !Number(quantity)) {
-      setToastMsg('Please fill all required delivery order fields.');
+    if (!customerName.trim() || !sourceLocationId || !selectedProductId || !Number(quantity) || Number(quantity) <= 0) {
+      setToastMsg('Please enter a valid positive quantity and fill all required delivery order fields.');
       return;
     }
 

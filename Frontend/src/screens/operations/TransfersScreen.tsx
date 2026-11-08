@@ -74,8 +74,8 @@ export const TransfersScreen: React.FC<TransfersScreenProps> = ({
   }, [autoOpenCreate]);
 
   const handleCreateTransfer = async () => {
-    if (!sourceLocId || !destLocId || !productId || !Number(quantity)) {
-      setToastMsg('Please fill all transfer fields.');
+    if (!sourceLocId || !destLocId || !productId || !Number(quantity) || Number(quantity) <= 0) {
+      setToastMsg('Please enter a valid positive quantity and fill all transfer fields.');
       return;
     }
     if (sourceLocId === destLocId) {
