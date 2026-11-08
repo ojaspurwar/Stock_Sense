@@ -5,12 +5,17 @@
 </p>
 
 <p align="center">
+  <a href="https://stock-sense-synapse-v.vercel.app" target="_blank">
+    <img src="https://img.shields.io/badge/Live%20Demo-Vercel-success?style=for-the-badge&logo=vercel&logoColor=white" alt="Live Demo" />
+  </a>
   <img src="https://img.shields.io/badge/Frontend-Vite%208%20%7C%20React%2018-blue?style=for-the-badge&logo=vite&logoColor=white" alt="Frontend" />
   <img src="https://img.shields.io/badge/Backend-Next.js%2016-black?style=for-the-badge&logo=next.js&logoColor=white" alt="Backend" />
-  <img src="https://img.shields.io/badge/Database-PostgreSQL%20%7C%20Neon-00e699?style=for-the-badge&logo=postgresql&logoColor=white" alt="Database" />
+  <img src="https://img.shields.io/badge/Database-PostgreSQL%20%7C%20Neon%20%2F%20Supabase-00e699?style=for-the-badge&logo=postgresql&logoColor=white" alt="Database" />
   <img src="https://img.shields.io/badge/ORM-Prisma%205.22-2D3748?style=for-the-badge&logo=prisma&logoColor=white" alt="Prisma" />
   <img src="https://img.shields.io/badge/Styling-Tailwind%20CSS%20v3-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white" alt="Tailwind" />
 </p>
+
+> 🚀 **Live Production Deployment:** [https://stock-sense-synapse-v.vercel.app](https://stock-sense-synapse-v.vercel.app)
 
 ---
 
