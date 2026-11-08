@@ -5,5 +5,13 @@
     "Backend",
     "Database",
     "Frontend"
-  ]
+  ],
+  "scripts": {
+    "dev:frontend": "npm run dev --workspace=Frontend",
+    "dev:backend": "npm run dev --workspace=Backend",
+    "build:frontend": "npm run build --workspace=Frontend",
+    "build:backend": "npm run build --workspace=Backend",
+    "db:generate": "npm run prisma:generate --workspace=Backend",
+    "db:push": "npx prisma db push --schema=Database/prisma/schema.prisma"
+  }
 }
